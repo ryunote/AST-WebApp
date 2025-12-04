@@ -1,0 +1,9 @@
+# バックエンドの依存関係
+fastapi
+uvicorn
+mangum
+pydantic
+
+# 株価データ取得のためのライブラリ
+pandas
+yfinance
