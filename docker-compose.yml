@@ -1,13 +1,46 @@
 version: '3.8'
 
 services:
+  # --- バックエンド ---
   backend:
     build: ./backend
     container_name: stock-backend
     ports:
       - "8000:8000"
     volumes:
-      # ローカルのコードをコンテナにマウント（コード変更を即座に反映させるため）
       - ./backend:/app
-    # ホットリロードを有効にして起動
+    # DB接続情報を環境変数として渡す
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/stock_db
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - db
+
+  # --- フロントエンド ---
+  # frontend:
+  #   # (Next.jsの設定はそのまま。今回は省略せず記述しておきます)
+  #   # もしNext.jsをDocker化していない場合は、このセクションは不要または手動起動でOK
+  #   # 前回の指示では手動(npm run dev)だったので、ここはコメントアウトでも可
+  #   image: node:18-alpine
+  #   working_dir: /app
+  #   volumes:
+  #     - ./frontend:/app
+  #   ports:
+  #     - "3000:3000"
+  #   command: npm run dev
+
+  # --- データベース (新規追加) ---
+  db:
+    image: postgres:15-alpine
+    container_name: stock-db
+    ports:
+      - "5432:5432" # ホストからもアクセス可能にする
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=stock_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

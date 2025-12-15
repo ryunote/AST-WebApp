@@ -7,3 +7,7 @@ pydantic
 # 株価データ取得のためのライブラリ
 pandas
 yfinance
+
+# PosgreSQLデータベース接続用ライブラリ
+sqlalchemy  # ORM
+psycopg2-binary # Postgresドライバ
