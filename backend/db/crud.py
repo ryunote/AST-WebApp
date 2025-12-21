@@ -1,26 +1,19 @@
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 import yfinance as yf
-
-# 相対インポート
 from .models import StockInTrade
-# スキーマ（型定義）のインポート。パス解決のため親ディレクトリからのインポートになる点に注意
-# main.py から実行されるため、backendディレクトリがパスに含まれる前提
 from schemas import StockUpdate
 
 def get_stocks(db: Session) -> List[StockInTrade]:
-    """
-    登録されている全ての監視銘柄を取得する。
-    証券コード順（昇順）でソートして返却する。
-    """
+    """登録されている全ての監視銘柄を取得する"""
     return db.query(StockInTrade).order_by(StockInTrade.stock_symbol).all()
-
 
 def create_stock(db: Session, stock_symbol: str) -> Dict[str, Any]:
     """
     新しい銘柄を監視リストに登録する。
+    yfinanceによる実在チェック(バリデーション)を行う。
     """
-    # 既に登録済みかチェック
+    # 1. 重複チェック
     existing_stock = db.query(StockInTrade).filter(StockInTrade.stock_symbol == stock_symbol).first()
     if existing_stock:
         return {
@@ -28,16 +21,41 @@ def create_stock(db: Session, stock_symbol: str) -> Dict[str, Any]:
             "message": f"証券番号 {stock_symbol} は既に登録されています。"
         }
 
-    # yfinanceを使用して銘柄情報を取得
+    # 2. 実在チェック & 情報取得
     stock_name = "名称不明"
     try:
-        ticker = yf.Ticker(f"{stock_symbol}.T")
+        ticker = yf.Ticker(stock_symbol)
+        
+        # infoプロパティへのアクセスはネットワーク通信が発生する
         info = ticker.info
-        stock_name = info.get('shortName') or info.get('longName') or "名称不明"
-    except Exception as e:
-        print(f"[Warning] Failed to fetch stock name for {stock_symbol}: {e}")
+        
+        # 【バリデーションロジック】
+        # 以下のいずれかに該当する場合は「無効な銘柄」とみなす
+        # 1. infoが空
+        # 2. regularMarketPrice (現在値) がない（上場廃止や無効コードの可能性が高い）
+        #    ※ ただし、取引時間外やデータ遅延で取れない場合もあるため、
+        #       shortName/longNameが取れていればヨシとする緩和策も入れる。
+        has_price = 'regularMarketPrice' in info and info['regularMarketPrice'] is not None
+        has_name = ('shortName' in info and info['shortName']) or ('longName' in info and info['longName'])
 
-    # 新規レコード作成
+        if not has_price and not has_name:
+             return {
+                "status": "error",
+                "message": f"銘柄 {stock_symbol} の詳細情報が見つかりません。コードや市場を確認してください。"
+             }
+
+        # 名称の決定
+        stock_name = info.get('shortName') or info.get('longName') or "名称不明"
+
+    except Exception as e:
+        # 通信エラーやyfinance内部エラーのハンドリング
+        print(f"[Error] yfinance validation failed: {e}")
+        return {
+            "status": "error", 
+            "message": "銘柄情報の確認中にエラーが発生しました。しばらく待って再試行してください。"
+        }
+
+    # 3. DB保存
     new_stock = StockInTrade(
         stock_symbol=stock_symbol, 
         stock_name=stock_name
@@ -56,7 +74,7 @@ def create_stock(db: Session, stock_symbol: str) -> Dict[str, Any]:
         db.rollback()
         return {
             "status": "error", 
-            "message": f"データベースへの保存中にエラーが発生しました: {str(e)}"
+            "message": f"データベースへの保存エラー: {str(e)}"
         }
 
 
