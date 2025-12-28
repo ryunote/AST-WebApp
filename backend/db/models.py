@@ -14,9 +14,23 @@ class StockInTrade(Base):
     """
     __tablename__ = "stocks_in_trade"
 
+    # カラム定義 銘柄の基本情報 ---
     stock_symbol = Column(String, primary_key=True, index=True)
     stock_name = Column(String, nullable=True)
     order_id = Column(String, default="---")
     order_datetime = Column(String, default="未取得")
     order_settlement_datetime = Column(String, default="未取得")
     average_acquisition_price = Column(Float, default=0.0)
+    
+    # カラム定義 AI分析結果の永続化用 ---
+    # 分析を行った日時
+    last_analyzed_at = Column(String, nullable=True)
+    
+    # 現在株価（分析時点）
+    current_price = Column(Float, default=0.0)
+    
+    # AI予測結果 ("up", "down", "unknown")
+    ai_prediction = Column(String, nullable=True)
+    
+    # 売買提案 ("BUY", "SELL", "STAY", "WAIT", "HOLD")
+    ai_suggestion = Column(String, nullable=True)

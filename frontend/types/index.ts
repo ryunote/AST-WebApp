@@ -1,21 +1,3 @@
-// 株価データの型定義
-export type StockData = {
-  Date: string;
-  Open: number;
-  High: number;
-  Low: number;
-  Close: number;
-  "Adj Close": number; // スペースが含まれるキーは引用符で囲む
-  Volume: number;
-};
-
-// 検索フォームの入力値の型
-export type SearchParams = {
-  ticker: string;
-  startDate: string;
-  endDate: string;
-};
-
 /**
  * DBの `stocks_in_trade` テーブルに対応する型定義。
  * APIレスポンスとして返却されるデータの形状を示す。
@@ -33,13 +15,33 @@ export type StockInTrade = {
   order_settlement_datetime: string;
   /** 平均取得単価 */
   average_acquisition_price: number;
+  
+  // --- 以下、追加カラム (Optional) ---
+  // APIからの返却値が null の場合も考慮
+  
+  /** 最終分析日時 */
+  last_analyzed_at?: string | null;
+  /** 現在株価 */
+  current_price?: number | null;
+  /** AI予測結果 ("up" | "down" | "unknown") */
+  ai_prediction?: string | null;
+  /** 売買提案 ("BUY" | "SELL" | "STAY" | "WAIT" | "HOLD") */
+  ai_suggestion?: string | null;
 };
 
 /**
  * 銘柄操作の結果を表す型。
- * UI側でのトースト通知やエラー表示に使用する。
  */
 export type StockActionResult = {
   success: boolean;
   message: string;
+};
+
+/**
+ * システムログのデータ構造
+ */
+export type LogEntry = {
+  id: string;        // リスト表示のkey用
+  timestamp: string; // 固定されたタイムスタンプ
+  message: string;   // ログ内容
 };
