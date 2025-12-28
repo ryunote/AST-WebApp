@@ -7,49 +7,36 @@ import StatusLog from "@/components/StatusLog";
 import ThemeToggle from "@/components/ThemeToggle";
 import AnalysisPanel from "@/components/AnalysisPanel";
 import { useStocks } from "@/hooks/useStocks";
+import { LogEntry } from "@/types";
 
 /**
- * アプリケーションのルートページ (Dashboard)。
- * 各コンポーネントのレイアウト定義と、データフックの注入を行う。
+ * アプリケーションのルートページ。
+ * 状態のリフトアップ（ログ状態の管理）を行い、
+ * バックエンド通信が発生するコンポーネントへログ出力関数(addLog)を注入する。
  */
 export default function Home() {
   const { stocks, loading, error, addStock, deleteStock, settleStock, refreshStocks } = useStocks();
   
-  // ログの状態管理 (ここに追加)
-  const [logs, setLogs] = useState<string[]>([
-    "System initialized.",
-    "Connected to Backend API."
-  ]);
+  // システムログの状態管理
+  const [logs, setLogs] = useState<LogEntry[]>([]);
 
   /**
-   * ログを追加するヘルパー関数
+   * ログを追加する関数。
+   * 子コンポーネント（API通信を行う箇所）から呼び出される。
+   * バックエンドからの応答やエラー内容を可視化するために使用する。
    */
   const addLog = (message: string) => {
-    setLogs((prev) => [...prev, message]);
-  };
-
-  /**
-   * アクション実行時にログを挟むラッパー
-   */
-  const handleAddStock = async (ticker: string) => {
-    addLog(`[Request] 銘柄追加: ${ticker}`);
-    const result = await addStock(ticker);
-    addLog(`[Result] ${result.message}`);
-    return result;
-  };
-
-  const handleDeleteStock = async (ticker: string) => {
-    addLog(`[Request] 銘柄削除: ${ticker}`);
-    const result = await deleteStock(ticker);
-    addLog(`[Result] ${result.message}`);
-    return result;
-  };
-
-  const handleSettleStock = async (ticker: string) => {
-    addLog(`[Request] 手動決済: ${ticker}`);
-    const result = await settleStock(ticker);
-    addLog(`[Result] ${result.message}`);
-    return result;
+    const now = new Date();
+    const timeString = now.toLocaleTimeString("ja-JP");
+    
+    setLogs((prev) => [
+      ...prev, 
+      { 
+        id: crypto.randomUUID(),
+        timestamp: timeString, 
+        message 
+      }
+    ]);
   };
 
   return (
@@ -69,7 +56,7 @@ export default function Home() {
           <ThemeToggle />
         </header>
 
-        {/* グローバルエラー表示 */}
+        {/* グローバルエラー表示（サーバー接続エラーなど） */}
         {error && (
           <div role="alert" className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 rounded shadow-sm">
             <p className="font-bold">Error Occurred</p>
@@ -77,16 +64,17 @@ export default function Home() {
           </div>
         )}
 
-        {/* 銘柄操作エリア */}
+        {/* 銘柄操作エリア：ログ関数(onLog)を渡すことでバックエンドの結果を表示する */}
         <section aria-label="銘柄操作">
           <StockInputForm 
-            onAdd={handleAddStock} 
-            onDelete={handleDeleteStock} 
-            onSettle={handleSettleStock} 
+            onAdd={addStock} 
+            onDelete={deleteStock} 
+            onSettle={settleStock} 
+            onLog={addLog}
           />
         </section>
 
-        {/* AI分析パネル (ログ関数を渡す) */}
+        {/* AI分析パネル：分析プロセスの詳細ログを出力する */}
         <section aria-label="AI分析">
           <AnalysisPanel 
             stocks={stocks} 
@@ -100,7 +88,7 @@ export default function Home() {
           <StockTable stocks={stocks} loading={loading} />
         </section>
         
-        {/* システムログ (ログ状態を渡す) */}
+        {/* システムログ表示エリア */}
         <section aria-label="システムログ">
           <StatusLog logs={logs} />
         </section>

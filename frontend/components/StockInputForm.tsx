@@ -4,28 +4,39 @@ import { useState } from "react";
 import { StockActionResult } from "@/types";
 
 type Props = {
+  // アクション関数
   onAdd: (ticker: string) => Promise<StockActionResult>;
   onDelete: (ticker: string) => Promise<StockActionResult>;
   onSettle: (ticker: string) => Promise<StockActionResult>;
+  // ログ出力用コールバック（バックエンドの応答を記録するため）
+  onLog: (message: string) => void;
 };
+
+// 対応市場の定義
+const MARKETS = [
+  { label: "東証 (.T)", value: ".T" },
+  { label: "名証 (.N)", value: ".N" },
+  { label: "札証 (.S)", value: ".S" },
+  { label: "福証 (.F)", value: ".F" },
+  { label: "米国株/その他", value: "" },
+];
 
 /**
  * 銘柄操作フォームコンポーネント。
- * 【仕様変更】東京証券取引所（.T）の銘柄のみに限定。
- * これにより、yfinanceのデータ取得精度を担保し、ユーザー入力の揺らぎを排除する。
+ * バックエンドAPIとの対話結果をログエリアに送信する責務を追加。
  */
-export default function StockInputForm({ onAdd, onDelete, onSettle }: Props) {
+export default function StockInputForm({ onAdd, onDelete, onSettle, onLog }: Props) {
   const [code, setCode] = useState("");
   const [feedback, setFeedback] = useState<StockActionResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   /**
-   * 入力された数字コードに東証サフィックス(.T)を付与してティッカーを生成
+   * コード生成ロジック
    */
   const getFullTicker = () => {
     const cleanCode = code.trim();
     if (!cleanCode) return "";
-    return `${cleanCode}.T`;
+    return `${cleanCode}.T`; // 今回は東証固定
   };
 
   /**
@@ -33,34 +44,40 @@ export default function StockInputForm({ onAdd, onDelete, onSettle }: Props) {
    */
   const handleAction = async (
     actionFn: (t: string) => Promise<StockActionResult>,
+    actionName: string, // ログ用の操作名
     validateFormat: boolean = true
   ) => {
     const fullTicker = getFullTicker();
     
-    // 1. クライアントサイドバリデーション
+    // 1. バリデーション
     if (!code) {
       setFeedback({ success: false, message: "証券コードを入力してください。" });
       return;
     }
-    
-    // 東証限定のため、半角数字のみを許可
     if (validateFormat && !/^[0-9]+$/.test(code)) {
        setFeedback({ success: false, message: "証券コードは半角数字で入力してください。" });
        return;
     }
 
-    // 2. 処理開始
+    // 2. 処理開始ログ (Backend呼び出し開始の可視化)
     setIsProcessing(true);
     setFeedback(null);
+    onLog(`[System] Backendへ ${actionName} リクエストを送信中: ${fullTicker}`);
     
     // 3. API実行
     const result = await actionFn(fullTicker);
     
-    // 4. 結果反映
+    // 4. 結果ログ (Backendからの応答)
+    if (result.success) {
+      onLog(`[Success] Backend応答: ${result.message}`);
+    } else {
+      onLog(`[Error] Backend応答: ${result.message}`);
+    }
+
+    // 5. UI反映
     setFeedback(result);
     setIsProcessing(false);
 
-    // 成功時のみ入力欄をクリア
     if (result.success) {
       setCode(""); 
     }
@@ -69,15 +86,12 @@ export default function StockInputForm({ onAdd, onDelete, onSettle }: Props) {
   return (
     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 mb-6 transition-colors">
       
-      {/* フォームとボタンのレイアウト */}
       <div className="flex flex-col md:flex-row gap-6 items-start md:items-end">
-        
-        {/* 証券コード入力エリア */}
+        {/* 入力欄 */}
         <div>
           <label htmlFor="stock-code" className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
             証券コード
           </label>
-          
           <div className="flex items-center gap-2">
             <div className="relative">
               <input
@@ -88,43 +102,40 @@ export default function StockInputForm({ onAdd, onDelete, onSettle }: Props) {
                 className="border border-gray-300 dark:border-gray-600 rounded-l px-3 py-2 w-32 text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 outline-none transition-colors placeholder-gray-400 text-right font-mono text-lg"
                 placeholder="7203"
                 disabled={isProcessing}
-                maxLength={4} // 一般的な銘柄コード長（必要に応じて5桁対応など緩和可）
+                maxLength={4} 
               />
             </div>
-            {/* .T 固定表示ラベル */}
             <span className="text-gray-500 dark:text-gray-400 font-bold text-lg">.T</span>
           </div>
-          
-          {/* 注釈メッセージ */}
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
             ※ 現在、東京証券取引所の銘柄のみ対応しています。
           </p>
         </div>
 
-        {/* アクションボタン群 */}
+        {/* ボタン群 */}
         <div className="flex gap-2 flex-wrap">
           <ActionButton 
             label={isProcessing ? "処理中..." : "追加"} 
-            onClick={() => handleAction(onAdd, true)} 
+            onClick={() => handleAction(onAdd, "登録", true)} 
             colorClass="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
             disabled={isProcessing}
           />
           <ActionButton 
             label="手動決済" 
-            onClick={() => handleAction(onSettle, false)} 
+            onClick={() => handleAction(onSettle, "決済", false)} 
             colorClass="bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-500"
             disabled={isProcessing}
           />
           <ActionButton 
             label="削除" 
-            onClick={() => handleAction(onDelete, false)} 
+            onClick={() => handleAction(onDelete, "削除", false)} 
             colorClass="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600"
             disabled={isProcessing}
           />
         </div>
       </div>
       
-      {/* フィードバックメッセージ */}
+      {/* 簡易フィードバック表示 */}
       {feedback && (
         <div className={`mt-4 p-3 rounded text-sm font-medium flex items-center gap-2 animate-fadeIn ${
           feedback.success 
@@ -139,15 +150,7 @@ export default function StockInputForm({ onAdd, onDelete, onSettle }: Props) {
   );
 }
 
-// ボタンコンポーネント（DRY）
-const ActionButton = ({ 
-  label, onClick, colorClass, disabled 
-}: { 
-  label: string; 
-  onClick: () => void; 
-  colorClass: string; 
-  disabled: boolean 
-}) => (
+const ActionButton = ({ label, onClick, colorClass, disabled }: any) => (
   <button
     onClick={onClick}
     disabled={disabled}

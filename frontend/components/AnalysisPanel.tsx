@@ -15,7 +15,7 @@ type Props = {
 
 /**
  * 一括分析を実行するコントロールパネル。
- * フロントエンド主導で順次APIをコールし、進捗とログをユーザーにフィードバックする。
+ * バックエンドAPIとの通信状況を詳細にログ出力する。
  */
 export default function AnalysisPanel({ stocks, onAnalysisComplete, onLog }: Props) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -30,25 +30,30 @@ export default function AnalysisPanel({ stocks, onAnalysisComplete, onLog }: Pro
     
     setIsAnalyzing(true);
     setProgress(0);
-    onLog(`[Start] 一括分析プロセスを開始します (対象: ${stocks.length}件)`);
+    // バックエンド処理の開始を明示
+    onLog(`[System] 一括分析ジョブを開始: 対象 ${stocks.length} 件`);
 
     let completed = 0;
 
     // 直列実行でAPIを叩く
     for (const stock of stocks) {
       const ticker = stock.stock_symbol;
-      setCurrentStatus(`${ticker} 分析中...`);
-      onLog(`[Info] ${ticker} (${stock.stock_name}) のデータを取得・分析中...`);
+      
+      // ユーザーへのフィードバック
+      setCurrentStatus(`${ticker} 処理中...`);
+      // バックエンドへのリクエスト送信ログ
+      onLog(`[Processing] ${ticker}: Backendへ分析リクエストを送信中...`);
 
       try {
-        // 分析APIをコール (DB更新含む)
-        // レスポンスを受け取ることで、詳細な結果をログに出せる
+        // 分析APIをコール
         const result = await apiClient<any>(`/api/analysis/${ticker}`);
         
-        onLog(`[Success] ${ticker}: 予測=${result.prediction}, 提案=${result.suggestion}, 株価=${result.current_price}`);
+        // バックエンドから返ってきた結果をログに出力（処理の可視化）
+        onLog(`[Success] ${ticker} 分析完了: 予測=${result.prediction}, 提案=${result.suggestion}, 現在値=${result.current_price}`);
       
       } catch (error: any) {
-        onLog(`[Error] ${ticker} の分析に失敗しました: ${error.message || "Unknown error"}`);
+        // エラー内容をログに出力
+        onLog(`[Error] ${ticker} 分析失敗: ${error.message || "Unknown error"}`);
         console.error(`Failed to analyze ${ticker}`, error);
       }
       
@@ -57,7 +62,7 @@ export default function AnalysisPanel({ stocks, onAnalysisComplete, onLog }: Pro
     }
 
     setCurrentStatus("完了");
-    onLog("[Done] 全銘柄の分析が完了しました。最新データを表示します。");
+    onLog("[System] 全ジョブが完了しました。データベースは最新の状態です。");
     
     setIsAnalyzing(false);
     
