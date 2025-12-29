@@ -85,6 +85,7 @@ frontend/
 ├── lib/
 │   └── api.ts             # 共通APIクライアント (Fetch wrapper)
 └── types/                 # TypeScript型定義 (Backendモデルと同期)
+    └── index.js           # APIレスポンス・リクエスト型
 ```
 
 ---
