@@ -101,18 +101,25 @@ cd ast-web
 ```
 
 ### 2. コンテナの起動
-バックエンド(FastAPI)、フロントエンド(Next.js)、データベース(PostgreSQL)が一括で起動します。
-
+バックエンド(FastAPI)、データベース(PostgreSQL)が一括で起動します。
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
-### 3. アクセス
+### 3. フロントエンドの起動
+別ターミナルで以下を実行し、Next.js開発サーバーを起動します。
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 4. アクセス
 *   **Webアプリ**: [http://localhost:3000](http://localhost:3000)
 *   **APIドキュメント (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
     *   APIのテスト実行やレスポンス確認が可能です。
 
-### 4. データベースの確認 (Optional)
+### 5. データベースの確認 (Optional)
 コンテナ内のPostgreSQLに直接アクセスする場合：
 ```bash
 docker exec -it stock-db psql -U user -d stock_db
