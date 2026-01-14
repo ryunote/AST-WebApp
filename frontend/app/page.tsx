@@ -47,7 +47,7 @@ export default function Home() {
         <header className="flex justify-between items-start">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
-              株式売買提案システム <span className="text-blue-600 dark:text-blue-400 text-lg align-top">Phase 1</span>
+              株式売買提案システム <span className="text-blue-600 dark:text-blue-400 text-lg align-top">Phase 2</span>
             </h1>
             <p className="text-gray-500 dark:text-gray-400 mt-2">
               Cloud Native Architecture Migration Portfolio

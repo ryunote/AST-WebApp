@@ -1,4 +1,4 @@
-# バックエンドの依存関係
+# WebフレームワークとAPIサーバー
 fastapi
 uvicorn
 mangum
@@ -12,6 +12,5 @@ yfinance
 sqlalchemy  # ORM
 psycopg2-binary # Postgresドライバ
 
-# 機械学習ライブラリ
-xgboost # 高性能な勾配ブースティングライブラリ
-scikit-learn # 機械学習ツールキット
+# バックエンドサービス間の通信ライブラリ
+httpx  # 非同期HTTPクライアント
