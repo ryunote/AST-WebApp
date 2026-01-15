@@ -30,29 +30,26 @@ export default function AnalysisPanel({ stocks, onAnalysisComplete, onLog }: Pro
     
     setIsAnalyzing(true);
     setProgress(0);
-    // バックエンド処理の開始を明示
-    onLog(`[System] 一括分析ジョブを開始: 対象 ${stocks.length} 件`);
+    // Phase 2 用の開始メッセージ
+    onLog(`[Orchestrator] 一括分析ジョブを開始: 対象 ${stocks.length} 件`);
 
     let completed = 0;
 
-    // 直列実行でAPIを叩く
     for (const stock of stocks) {
       const ticker = stock.stock_symbol;
       
-      // ユーザーへのフィードバック
-      setCurrentStatus(`${ticker} 処理中...`);
-      // バックエンドへのリクエスト送信ログ
-      onLog(`[Processing] ${ticker}: Backendへ分析リクエストを送信中...`);
+      setCurrentStatus(`${ticker} 分析中 (Core→ML)...`);
+      
+      // ユーザーに「内部で通信している感」を伝えるメッセージ
+      onLog(`[Core Service] ${ticker}: ML Service (stock-ml) へ予測計算を委譲中...`);
 
       try {
-        // 分析APIをコール
         const result = await apiClient<any>(`/api/analysis/${ticker}`);
         
-        // バックエンドから返ってきた結果をログに出力（処理の可視化）
-        onLog(`[Success] ${ticker} 分析完了: 予測=${result.prediction}, 提案=${result.suggestion}, 現在値=${result.current_price}`);
+        // 結果受信ログも少しテクニカルに
+        onLog(`[Core <- ML] ${ticker} 結果受信: 予測=${result.prediction}, 提案=${result.suggestion}, 現在値=${result.current_price}`);
       
       } catch (error: any) {
-        // エラー内容をログに出力
         onLog(`[Error] ${ticker} 分析失敗: ${error.message || "Unknown error"}`);
         console.error(`Failed to analyze ${ticker}`, error);
       }
@@ -62,11 +59,9 @@ export default function AnalysisPanel({ stocks, onAnalysisComplete, onLog }: Pro
     }
 
     setCurrentStatus("完了");
-    onLog("[System] 全ジョブが完了しました。データベースは最新の状態です。");
+    onLog("[System] 全ジョブ完了。データベース同期済み。");
     
     setIsAnalyzing(false);
-    
-    // 最後に一覧データを再取得してテーブルを更新
     onAnalysisComplete();
   };
 
@@ -75,10 +70,10 @@ export default function AnalysisPanel({ stocks, onAnalysisComplete, onLog }: Pro
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
-            <span>🤖</span> AI売買判断
+            <span>🤖</span> AI売買判断 (マイクロサービス)
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            登録済み全銘柄の株価データを取得し、機械学習モデルによる予測を実行します。
+            バックエンドのコアサービスが機械学習サービスを呼び出し、登録全銘柄の予測・判断を実行します。
           </p>
         </div>
         
@@ -91,11 +86,10 @@ export default function AnalysisPanel({ stocks, onAnalysisComplete, onLog }: Pro
               : "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0"
           }`}
         >
-          {isAnalyzing ? "AI思考中..." : "一括判断を実行"}
+          {isAnalyzing ? "連携処理中..." : "一括判断を実行"}
         </button>
       </div>
 
-      {/* プログレスバー */}
       {isAnalyzing && (
         <div className="mt-4 animate-fadeIn">
           <div className="flex justify-between text-xs text-gray-600 dark:text-gray-300 mb-1 font-mono">
