@@ -46,8 +46,12 @@ export default function AnalysisPanel({ stocks, onAnalysisComplete, onLog }: Pro
       try {
         const result = await apiClient<any>(`/api/analysis/${ticker}`);
         
+        // 【修正箇所】 result.current_price を Number() でラップし、toFixed(1) を適用
+        // 小数点以下第1位まで表示（日本株の慣習に合わせる）
+        const formattedPrice = Number(result.current_price).toFixed(1);
+
         // 結果受信ログも少しテクニカルに
-        onLog(`[Core <- ML] ${ticker} 結果受信: 予測=${result.prediction}, 提案=${result.suggestion}, 現在値=${result.current_price}`);
+        onLog(`[Core <- ML] ${ticker} 結果受信: 予測=${result.prediction}, 提案=${result.suggestion}, 現在値=${formattedPrice}`);
       
       } catch (error: any) {
         onLog(`[Error] ${ticker} 分析失敗: ${error.message || "Unknown error"}`);

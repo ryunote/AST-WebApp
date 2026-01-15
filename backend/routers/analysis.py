@@ -88,13 +88,11 @@ async def analyze_stock(stock_symbol: str, db: Session = Depends(get_db)) -> Sto
         raise HTTPException(status_code=404, detail="銘柄が登録されていません。")
 
     # 2. ML Service へのリクエスト (非同期通信)
-    # マイクロサービス間の通信はネットワーク遅延を含むため、非同期かつタイムアウト設定が必須
     prediction = "unknown"
     current_price = 0.0
 
     try:
         async with httpx.AsyncClient() as client:
-            # データ取得や推論処理に時間がかかる場合があるため、タイムアウトを20秒に設定
             resp = await client.get(f"{ML_SERVICE_URL}/predict/{stock_symbol}", timeout=20.0)
             
             if resp.status_code != 200:
@@ -103,9 +101,14 @@ async def analyze_stock(stock_symbol: str, db: Session = Depends(get_db)) -> Sto
             
             data = resp.json()
             prediction = data["prediction"]
-            current_price = data["current_price"]
             
-            print(f"[Info] ML Service Result: {data}", file=sys.stdout)
+            # 【修正点】 受け取った値を丸める
+            # 日本株(東証)は0.1円単位が基本のため、
+            # 安全をとって「小数点第2位」で丸める。
+            raw_price = data["current_price"]
+            current_price = round(raw_price, 2)
+            
+            print(f"[Info] ML Service Result: {data} -> Rounded Price: {current_price}", file=sys.stdout)
 
     except httpx.RequestError as exc:
         print(f"[Error] Failed to connect to ML Service: {exc}", file=sys.stderr)
