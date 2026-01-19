@@ -15,19 +15,24 @@ services:
       - db
 
   # --- フロントエンド ---
-  # frontend:
-  #   # (Next.jsの設定はそのまま。今回は省略せず記述しておきます)
-  #   # もしNext.jsをDocker化していない場合は、このセクションは不要または手動起動でOK
-  #   # 前回の指示では手動(npm run dev)だったので、ここはコメントアウトでも可
-  #   image: node:18-alpine
-  #   working_dir: /app
-  #   volumes:
-  #     - ./frontend:/app
-  #   ports:
-  #     - "3000:3000"
-  #   command: npm run dev
+  frontend:
+    # image: ... ではなく build を使う
+    build: ./frontend
+    container_name: stock-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      # ソースコードは同期する
+      - ./frontend:/app
+      # 【重要】ホストのnode_modulesをコンテナに上書きさせないための設定（匿名ボリューム）
+      - /app/node_modules
+    environment:
+      # ブラウザから見たバックエンドのURL
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    depends_on:
+      - backend
 
-  # --- データベース (新規追加) ---
+  # --- データベース ---
   db:
     image: postgres:15-alpine
     container_name: stock-db

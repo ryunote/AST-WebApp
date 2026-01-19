@@ -1,11 +1,11 @@
-# AST-Web 株売買支援Webシステム：Phase 1
+# AST-Web: Stock Trading Support System (Cloud Native Migration)
 
 ## 📖 プロジェクト概要
 **AST-Web** は、過去にPython/Tkinterで開発したデスクトップ型株式売買支援システムを、モダンなWebアーキテクチャ（Cloud Native）へ移行・再構築するプロジェクトです。
 
 本プロジェクトの目的は、単なるアプリのWeb化にとどまらず、**モノリスからマイクロサービスへの移行、コンテナオーケストレーション（Kubernetes）、GitOpsの実践** を通じて、堅牢かつスケーラブルなシステム基盤を構築するプロセスそのものを実証することにあります。
 
-現在は **Phase 1 (MVP)** として、**DockerコンテナベースのWebアプリケーション（FastAPI + Next.js）** を構築し、AWS Lambda等のサーバーレス環境へデプロイ可能な構成を実現しています。
+現在は **Phase 1 (MVP)** として、**DockerコンテナベースのWebアプリケーション（FastAPI + Next.js）** を構築し、AWSクラウド（Serverless/Container）へデプロイ可能な構成を実現しています。
 
 ---
 
@@ -15,19 +15,19 @@
 
 ```mermaid
 graph TD
-    User((User)) -->|Browser| Front[Frontend: Next.js]
+    User((User)) -->|Browser| Front["Frontend: Next.js"]
     
     subgraph "Docker Container System (Local / Cloud)"
-        Front -->|REST API| Back[Backend: FastAPI]
+        Front -->|REST API| Back["Backend: FastAPI"]
         
         subgraph "Backend Internal"
             Back -->|Routing| Router[Routers]
             Router -->|Logic| Service["Services (ML/Market)"]
-            Router -->|CRUD| DB_Layer[DB Access Layer]
+            Router -->|CRUD| DB_Layer["DB Access Layer"]
         end
         
-        DB_Layer -->|SQL| DB[(PostgreSQL)]
-        Service -->|Fetch| Yahoo[External: Yahoo Finance]
+        DB_Layer -->|SQL| DB[("PostgreSQL")]
+        Service -->|Fetch| Yahoo["External: Yahoo Finance"]
     end
 ```
 
@@ -39,7 +39,7 @@ graph TD
 | **Styling** | **Tailwind CSS** | ユーティリティファーストなCSS設計。`next-themes` によるダークモード対応済み。 |
 | **Backend** | **Python (FastAPI)** | 非同期処理に強く、Pydanticによる厳格な型定義が可能。AWS Lambda用アダプタ(Mangum)実装済み。 |
 | **ML / Analysis** | **XGBoost / Pandas** | 過去1年分の株価データを分析し、翌日の騰落予測（Up/Down）を行う機械学習エンジン。 |
-| **Database** | **PostgreSQL** | **Local**: Docker Container (postgres:15-alpine)<br>**Prod**: Supabase (Planned) |
+| **Database** | **PostgreSQL** | **Local**: Docker Container (postgres:15-alpine)<br>**Prod**: Amazon RDS (Planned) |
 | **Infrastructure** | **Docker / Compose** | フルスタック環境のコンテナ化。ボリュームマウントによるデータ永続化とホットリロード対応。 |
 
 ---
@@ -85,7 +85,7 @@ frontend/
 ├── lib/
 │   └── api.ts             # 共通APIクライアント (Fetch wrapper)
 └── types/                 # TypeScript型定義 (Backendモデルと同期)
-    └── index.js           # APIレスポンス・リクエスト型
+    └── index.ts           # APIレスポンス・リクエスト型
 ```
 
 ---
@@ -101,25 +101,18 @@ cd ast-web
 ```
 
 ### 2. コンテナの起動
-バックエンド(FastAPI)、データベース(PostgreSQL)が一括で起動します。
+バックエンド(FastAPI)、フロントエンド(Next.js)、データベース(PostgreSQL)が一括で起動します。
+
 ```bash
 docker compose up --build
 ```
 
-### 3. フロントエンドの起動
-別ターミナルで以下を実行し、Next.js開発サーバーを起動します。
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-### 4. アクセス
+### 3. アクセス
 *   **Webアプリ**: [http://localhost:3000](http://localhost:3000)
 *   **APIドキュメント (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
     *   APIのテスト実行やレスポンス確認が可能です。
 
-### 5. データベースの確認 (Optional)
+### 4. データベースの確認 (Optional)
 コンテナ内のPostgreSQLに直接アクセスする場合：
 ```bash
 docker exec -it stock-db psql -U user -d stock_db
@@ -148,16 +141,17 @@ docker exec -it stock-db psql -U user -d stock_db
 
 本プロジェクトは段階的な進化を予定しています。
 
-*   **Phase 1: Serverless-Ready Container Architecture (Current)**
+*   **Phase 1: AWS Serverless Environment (Current)**
     *   [x] PythonデスクトップアプリのWeb API化 (FastAPI)
     *   [x] Next.jsによるモダンUI構築
     *   [x] Docker Composeによるフルスタック開発環境
     *   [x] AI推論エンジンの移植とDB永続化の実装
-*   **Phase 2: Microservices Separation**
+    *   [ ] AWSへのデプロイ (Lambda / Amplify / RDS)
+*   **Phase 2: Local Microservices Refactoring**
     *   [ ] バックエンドをドメインごと（Core, ML, Data）にマイクロサービス分割
     *   [ ] Redisによるキャッシュ層の導入 (yfinanceの負荷軽減)
-*   **Phase 3: Kubernetes & GitOps**
-    *   [ ] GKE (Google Kubernetes Engine) へのデプロイ
+*   **Phase 3: AWS Cloud Native (EKS & GitOps)**
+    *   [ ] Amazon EKS へのデプロイ
     *   [ ] Istio (Service Mesh) による通信制御と可視化
     *   [ ] ArgoCDによるGitOpsフローの構築
 
