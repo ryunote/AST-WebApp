@@ -1,0 +1,64 @@
+name: Deploy Phase 1 Backend (Lambda)
+
+on:
+  push:
+    # Phase 1用のブランチへのPushのみで発火
+    branches:
+      - "release/phase1"
+    # バックエンドのコードまたはワークフロー自体の変更時のみ実行
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-phase1.yml'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Build and Deploy to Lambda
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # AWS認証 (GitHub Secretsを設定しておくこと)
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      # ECRログイン
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Dockerビルド & Push
+      # ここで Dockerfile.aws を指定するのがポイント
+      - name: Build, Tag, and Push Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ast-web-backend  # AWS ECRのリポジトリ名
+          IMAGE_TAG: ${{ github.sha }}     # コミットハッシュをタグにする
+        run: |
+          cd backend
+          docker build -f Dockerfile.aws -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # 最新版として 'latest' タグも更新
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      # Lambda関数の更新
+      - name: Update Lambda Function Code
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ast-web-backend
+          IMAGE_TAG: ${{ github.sha }}
+          LAMBDA_FUNCTION_NAME: ast-web-backend-function # AWS Lambdaの関数名
+        run: |
+          aws lambda update-function-code \
+            --function-name $LAMBDA_FUNCTION_NAME \
+            --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
