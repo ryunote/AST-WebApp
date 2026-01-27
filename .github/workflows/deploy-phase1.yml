@@ -40,7 +40,7 @@ jobs:
       - name: Build, Tag, and Push Image to ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ast-web-backend  # AWS ECRのリポジトリ名
+          ECR_REPOSITORY: ast-p1-backend   # AWS ECRのリポジトリ名
           IMAGE_TAG: ${{ github.sha }}     # コミットハッシュをタグにする
         run: |
           cd backend
@@ -54,9 +54,9 @@ jobs:
       - name: Update Lambda Function Code
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ast-web-backend
+          ECR_REPOSITORY: ast-p1-backend
           IMAGE_TAG: ${{ github.sha }}
-          LAMBDA_FUNCTION_NAME: ast-web-backend-function # AWS Lambdaの関数名
+          LAMBDA_FUNCTION_NAME: ast-p1-backend-function # AWS Lambdaの関数名
         run: |
           aws lambda update-function-code \
             --function-name $LAMBDA_FUNCTION_NAME \
