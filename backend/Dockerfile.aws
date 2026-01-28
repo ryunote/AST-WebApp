@@ -1,16 +1,23 @@
 # AWS Lambda公式のPython 3.11イメージを使用
 FROM public.ecr.aws/lambda/python:3.11
 
+# 【修正点】XGBoostのビルドに必要なシステムパッケージをインストール
+#  上記のイメージにはビルドツールが含まれていないため、追加でインストールが必要
+# gcc-c++, cmake, make などを追加
+RUN dnf update -y && \
+    dnf install -y gcc-c++ cmake make && \
+    dnf clean all
+
 # 依存関係ファイルをコピー
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
 
 # 依存関係をインストール
 # --no-cache-dir: イメージサイズ削減
-RUN pip install --no-cache-dir -r requirements.txt
+# --prefer-binary: 可能な限りビルド済みのバイナリを使用するオプションを追加
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # ソースコードをすべてコピー
 COPY . ${LAMBDA_TASK_ROOT}
 
 # Lambdaの起動コマンド (Mangumハンドラを指定)
-# main.py の中の handler 変数を指す
 CMD [ "main.handler" ]
