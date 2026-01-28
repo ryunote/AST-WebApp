@@ -1,23 +1,27 @@
-# AWS Lambda公式のPython 3.11イメージを使用
+# AWS Lambda公式のPython 3.11イメージ (Amazon Linux 2 ベース)
 FROM public.ecr.aws/lambda/python:3.11
 
-# 【修正点】XGBoostのビルドに必要なシステムパッケージをインストール
-#  上記のイメージにはビルドツールが含まれていないため、追加でインストールが必要
-# gcc-c++, cmake, make などを追加
-RUN dnf update -y && \
-    dnf install -y gcc-c++ cmake make && \
-    dnf clean all
+# 1. OSの更新と、機械学習ライブラリ実行に必要な "libgomp" (OpenMP) のインストール
+# ※ dnf ではなく yum を使用します
+# ※ gccやcmakeなどのビルドツールはインストールしません（バイナリを使うため不要）
+RUN yum update -y && \
+    yum install -y libgomp && \
+    yum clean all
 
-# 依存関係ファイルをコピー
+# 2. pip自体のアップグレード
+# 古いpipだと適切なバイナリ(manylinux wheel)を検出できず、ソースビルドに走る原因になるため
+RUN pip install --upgrade pip
+
 COPY requirements.txt ${LAMBDA_TASK_ROOT}
 
-# 依存関係をインストール
-# --no-cache-dir: イメージサイズ削減
-# --prefer-binary: 可能な限りビルド済みのバイナリを使用するオプションを追加
-RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
+# 3. 依存関係のインストール
+# --only-binary=:all:  ソースビルドを禁止し、必ずコンパイル済みバイナリを使用する
+# --no-cache-dir       イメージサイズ削減
+RUN pip install \
+    --no-cache-dir \
+    --only-binary=:all: \
+    -r requirements.txt
 
-# ソースコードをすべてコピー
 COPY . ${LAMBDA_TASK_ROOT}
 
-# Lambdaの起動コマンド (Mangumハンドラを指定)
 CMD [ "main.handler" ]
