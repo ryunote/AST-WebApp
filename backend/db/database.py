@@ -3,6 +3,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
+import os
+print(f"DEBUG: DATABASE_URL is set? {bool(os.getenv('DATABASE_URL'))}")
+# 注意: URLそのものはログに出さない（パスワード漏洩防止）
+
 # -----------------------------------------------------------------------------
 # データベース接続設定
 # -----------------------------------------------------------------------------
