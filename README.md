@@ -9,6 +9,11 @@
 
 ---
 
+## 📺 動作デモ
+https://github.com/user-attachments/assets/515a8601-ca18-4baf-82a3-0386b146256b
+
+---
+
 ## 🏗 アーキテクチャ (Phase 1)
 
 **「責務の分離 (Separation of Concerns)」** を徹底し、フロントエンドとバックエンドを疎結合に保っています。バックエンド内部はレイヤーアーキテクチャを採用し、将来的なマイクロサービス化（Phase 2）に備えています。
@@ -132,7 +137,6 @@ docker exec -it stock-db psql -U user -d stock_db
 3.  **可観測性 (Observability)**
     *   **システムログ**: バックエンドとの通信状況やエラー詳細をフロントエンド上のログパネルにリアルタイム表示。
 4.  **UI/UX**
-    *   **Dark Mode**: システム設定または手動切り替えによるダークテーマ対応（完全対応）。
     *   **Responsive**: PC/タブレット/SPに対応したレスポンシブデザイン。
 
 ---
@@ -146,7 +150,7 @@ docker exec -it stock-db psql -U user -d stock_db
     *   [x] Next.jsによるモダンUI構築
     *   [x] Docker Composeによるフルスタック開発環境
     *   [x] AI推論エンジンの移植とDB永続化の実装
-    *   [ ] AWSへのデプロイ (Lambda / Amplify / RDS)
+    *   [x] AWSへのデプロイ (Lambda / Amplify / RDS)
 *   **Phase 2: Local Microservices Refactoring**
     *   [ ] バックエンドをドメインごと（Core, ML, Data）にマイクロサービス分割
     *   [ ] Redisによるキャッシュ層の導入 (yfinanceの負荷軽減)
