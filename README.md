@@ -10,7 +10,7 @@
 ---
 
 ## 📺 動作デモ
-https://github.com/user-attachments/assets/515a8601-ca18-4baf-82a3-0386b146256b
+https://github.com/user-attachments/assets/37e2d080-890b-4a8c-bc28-46ec11759a0d
 
 ---
 
