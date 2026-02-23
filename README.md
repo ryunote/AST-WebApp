@@ -1,7 +1,8 @@
 # AST-Web: Stock Trading Support System (Cloud Native Migration)
 
 ## 📖 プロジェクト概要
-**AST-Web** は、過去にPython/Tkinterで開発したデスクトップ型株式売買支援システムを、モダンなWebアーキテクチャ（Cloud Native）へ移行・再構築するプロジェクトです。
+**AST-Web** は、作者が大学生時代にPython/Tkinterで開発した機械学習株式売買支援システム（Windowsアプリ）を、
+モダンなWebアーキテクチャ（Cloud Native）へ移行・再構築するプロジェクトです。
 
 本プロジェクトの目的は、単なるアプリのWeb化にとどまらず、**モノリスからマイクロサービスへの移行、コンテナオーケストレーション（Kubernetes）、GitOpsの実践** を通じて、堅牢かつスケーラブルなシステム基盤を構築するプロセスそのものを実証することにあります。
 
