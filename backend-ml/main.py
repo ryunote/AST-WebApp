@@ -16,6 +16,7 @@ from pydantic import BaseModel
 # ビジネスロジックモジュールのインポート
 from services.market_data import fetch_historical_data
 from services.ml_engine import predict_stock_movement
+from services.cache import get_prediction, set_prediction
 
 app = FastAPI(
     title="AST-Web ML Service",
@@ -48,6 +49,11 @@ def predict(stock_symbol: str) -> PredictionResponse:
     """
     print(f"--- [ML Service] Analyzing {stock_symbol} ---", file=sys.stdout)
 
+    # 0. キャッシュ確認 (Rate Limit回避・高速化)
+    cached = get_prediction(stock_symbol)
+    if cached:
+        return PredictionResponse(**cached)
+
     # 1. データ取得
     try:
         # yfinanceを用いて過去データを取得
@@ -70,11 +76,11 @@ def predict(stock_symbol: str) -> PredictionResponse:
         print(f"[Error] Prediction failed: {e}", file=sys.stderr)
         raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
 
-    return PredictionResponse(
-        stock_symbol=stock_symbol,
-        current_price=current_price,
-        prediction=prediction
-    )
+    # 3. 結果をキャッシュに保存
+    result = {"stock_symbol": stock_symbol, "current_price": current_price, "prediction": prediction}
+    set_prediction(stock_symbol, result)
+
+    return PredictionResponse(**result)
 
 @app.get("/health")
 def health_check() -> dict:

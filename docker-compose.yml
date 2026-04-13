@@ -24,8 +24,18 @@ services:
       - "8001:8000"  # ホストの8001番で直接アクセス/デバッグ可能にする
     volumes:
       - ./backend-ml:/app
-    # 環境変数は必要に応じて追加 (現在は特になし)
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # --- キャッシュ (Rate Limit回避・高速化) ---
+  redis:
+    image: redis:7-alpine
+    container_name: stock-redis
+    ports:
+      - "6379:6379"  # ローカルからのデバッグアクセス用
 
   # --- フロントエンド ---
   frontend:
