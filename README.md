@@ -130,7 +130,7 @@ Webアプリ上で「一括分析」ボタンを押すと、Frontend -> Core -> 
 *   **Phase 2: Microservices & Optimization (Current)**
     *   [x] バックエンドの分割 (Core Service / ML Service)
     *   [x] サービス間通信の実装 (HTTPX)
-    *   [ ] Redisによるキャッシュ層の導入 (Rate Limit回避・高速化)
+    *   [x] Redisによるキャッシュ層の導入 (Rate Limit回避・高速化)
     *   [ ] 生成AI (LLM) 連携によるニュース分析機能のプロトタイピング
 *   **Phase 3: Cloud Native & GitOps (Planned)**
     *   [ ] Kubernetes (EKS/GKE) へのデプロイ
