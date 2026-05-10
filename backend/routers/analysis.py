@@ -12,6 +12,7 @@ Analysis Router
 Microservices Architectureへの移行に伴い、計算ロジックはML Serviceへ委譲されています。
 """
 
+import os
 import sys
 from datetime import datetime
 import httpx
@@ -24,10 +25,8 @@ from schemas import StockAnalysisResult
 
 router = APIRouter()
 
-# MLサービスの接続先URL
-# Docker Compose等のサービスディスカバリ名を使用
-# TODO: 環境変数から読み込むよう修正することを推奨
-ML_SERVICE_URL = "http://ml-service:8000"
+# MLサービスの接続先URLを環境変数から取得
+ML_SERVICE_URL = os.environ.get("ML_SERVICE_URL", "http://ml-service:8000")
 
 # 再購入禁止期間 (日)
 # 短期売買による損失拡大を防ぐためのルール設定値

@@ -1,8 +1,27 @@
+import re
 from typing import Dict, Any, List
 from sqlalchemy.orm import Session
 import yfinance as yf
 from .models import StockInTrade
 from schemas import StockUpdate
+
+# 証券コードの許容フォーマット
+# 日本株: 7203.T / 米国株: AAPL / 香港: 0700.HK / 韓国: 005930.KS
+_STOCK_SYMBOL_RE = re.compile(r'^[A-Z0-9]{1,6}(\.[A-Z]{1,3})?$')
+
+def _validate_stock_symbol(symbol: str) -> str:
+    """
+    証券コードのフォーマットを検証して正規化する。
+    英数字・ドット・ハイフン以外の文字を含む入力を拒否することで、
+    yfinanceへの渡し値およびLLMプロンプトへの混入を防ぐ。
+    """
+    normalized = symbol.strip().upper()
+    if not _STOCK_SYMBOL_RE.match(normalized):
+        raise ValueError(
+            f"無効な証券コードフォーマット: '{symbol}'. "
+            "英数字と市場サフィックス（例: 7203.T, AAPL）のみ使用できます。"
+        )
+    return normalized
 
 def get_stocks(db: Session) -> List[StockInTrade]:
     """登録されている全ての監視銘柄を取得する"""
@@ -11,9 +30,15 @@ def get_stocks(db: Session) -> List[StockInTrade]:
 def create_stock(db: Session, stock_symbol: str) -> Dict[str, Any]:
     """
     新しい銘柄を監視リストに登録する。
-    yfinanceによる実在チェック(バリデーション)を行う。
+    フォーマット検証 → 重複チェック → yfinance実在チェックの順で処理する。
     """
-    # 1. 重複チェック
+    # 1. フォーマットバリデーション（プロンプトインジェクション対策）
+    try:
+        stock_symbol = _validate_stock_symbol(stock_symbol)
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+
+    # 2. 重複チェック
     existing_stock = db.query(StockInTrade).filter(StockInTrade.stock_symbol == stock_symbol).first()
     if existing_stock:
         return {
