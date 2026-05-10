@@ -13,3 +13,8 @@ scikit-learn # 機械学習ツールキット
 
 # キャッシュ
 redis[hiredis]  # RedisクライアントとC拡張パーサー
+
+# テスティングライブラリ
+pytest
+pytest-asyncio
+httpx[test]

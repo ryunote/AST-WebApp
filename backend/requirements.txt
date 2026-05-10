@@ -14,3 +14,8 @@ psycopg2-binary # Postgresドライバ
 
 # バックエンドサービス間の通信ライブラリ
 httpx  # 非同期HTTPクライアント
+
+# テスティングライブラリ
+pytest
+pytest-asyncio
+httpx[test]
