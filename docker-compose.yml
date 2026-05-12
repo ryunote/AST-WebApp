@@ -1,18 +1,41 @@
 services:
-  # --- バックエンド ---
+  # --- バックエンド コアサービス ---
   backend:
     build: ./backend
-    container_name: stock-backend
+    container_name: stock-core  # 名前を変更し役割を明確化
     ports:
-      - "8000:8000"
+      - "8000:8000"  # フロントエンドからのアクセス用
     volumes:
       - ./backend:/app
-    # DB接続情報を環境変数として渡す
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/stock_db
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # ML ServiceのURL指定 (サービス名:内部ポート)
+      - ML_SERVICE_URL=http://ml-service:8000
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - db
+      - ml-service
+
+  # --- バックエンド 機械学習サービス ---
+  ml-service:
+    build: ./backend-ml
+    container_name: stock-ml
+    ports:
+      - "8001:8000"  # ホストの8001番で直接アクセス/デバッグ可能にする
+    volumes:
+      - ./backend-ml:/app
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # --- キャッシュ (Rate Limit回避・高速化) ---
+  redis:
+    image: redis:7-alpine
+    container_name: stock-redis
+    ports:
+      - "6379:6379"  # ローカルからのデバッグアクセス用
 
   # --- フロントエンド ---
   frontend:
@@ -37,11 +60,11 @@ services:
     image: postgres:15-alpine
     container_name: stock-db
     ports:
-      - "5432:5432" # ホストからもアクセス可能にする
+      - "5432:5432"  # 開発デバッグ用。本番では削除すること。
     environment:
-      - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=stock_db
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

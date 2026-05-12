@@ -1,0 +1,20 @@
+# WebフレームワークとAPIサーバー
+fastapi
+uvicorn
+pydantic
+
+# 株価データ取得のためのライブラリ
+pandas
+yfinance
+
+# 機械学習ライブラリ
+xgboost # 高性能な勾配ブースティングライブラリ
+scikit-learn # 機械学習ツールキット
+
+# キャッシュ
+redis[hiredis]  # RedisクライアントとC拡張パーサー
+
+# テスティングライブラリ
+pytest
+pytest-asyncio
+httpx[test]
