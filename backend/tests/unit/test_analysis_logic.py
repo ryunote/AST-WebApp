@@ -166,6 +166,16 @@ class TestRepurchaseProhibition:
         # 下落予測 → STAY（禁止期間チェックはupの場合のみ発動する）
         assert response.json()["suggestion"] == "STAY"
 
+    def test_malformed_sold_date_treated_as_no_prohibition(self, client, db_session):
+        """売却日時フォーマット異常時は ValueError を握り潰して BUY を返すこと
+        (check_repurchase_prohibition の except (IndexError, ValueError) ブランチ)"""
+        _insert_stock(db_session, "7203", order_id="---", order_datetime="売却済: INVALID_DATE_FORMAT")
+        with patch("routers.analysis.httpx.AsyncClient", return_value=_make_ml_mock("up")):
+            response = client.get("/api/analysis/7203")
+        assert response.status_code == 200
+        # フォーマット異常 → False が返る → 禁止期間なし → BUY
+        assert response.json()["suggestion"] == "BUY"
+
 
 # ─── 外部依存エラーハンドリング ──────────────────────────────────────────────
 
@@ -216,3 +226,16 @@ def test_stock_symbol_in_response_matches_request(client, db_session):
         response = client.get("/api/analysis/7203")
 
     assert response.json()["stock_symbol"] == "7203"
+
+
+# ─── DB 例外ハンドリング ──────────────────────────────────────────────────────
+
+def test_analyze_stock_db_save_error_returns_500(client, db_session):
+    """analyze_stock で DB 保存時に例外が発生した場合は 500 を返すこと
+    (analysis.py の except Exception → HTTPException(500) ブランチ)"""
+    _insert_stock(db_session, "7203")
+    with patch("routers.analysis.httpx.AsyncClient", return_value=_make_ml_mock("up")), \
+         patch.object(db_session, "commit", side_effect=Exception("DB down")):
+        response = client.get("/api/analysis/7203")
+    assert response.status_code == 500
+    assert "DB保存エラー" in response.json()["detail"]

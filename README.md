@@ -182,11 +182,11 @@ Branch Coverage が Line Coverage より厳しい理由: `if A and B:` という
 
 ---
 
-### 現在のテスト構成（158テスト）
+### 現在のテスト構成（164テスト）
 
 | サービス | テストファイル | テスト数 | Line Coverage | Branch Coverage |
 | :--- | :--- | :---: | :---: | :---: |
-| **Core Service** | `test_stocks_router.py` / `test_analysis_logic.py` / `test_main.py` | 38 | 96% | 96% |
+| **Core Service** | `test_stocks_router.py` / `test_analysis_logic.py` / `test_main.py` | 44 | 99% | **99%** |
 | **ML Service** | `test_predict_endpoint.py` / `test_ml_engine.py` / `test_market_data.py` / `test_cache.py` / `test_main.py` | 46 | **100%** | **100%** |
 | **Frontend** | `StockInputForm.test.tsx` / `useStocks.test.ts` / `api.test.ts` / `page.test.tsx` / `StockTable.test.tsx` / `AnalysisPanel.test.tsx` / `StatusLog.test.tsx` | 74 | 79% | **85%** |
 
@@ -201,6 +201,16 @@ Branch Coverage が Line Coverage より厳しい理由: `if A and B:` という
 - `_insert_stock()` ヘルパーで DB に直接テストデータを挿入し、API 経由で状態変化を検証
 - `yfinance` / `httpx` (ML Service 間通信) を `unittest.mock` でモック化し、純粋なビジネスロジックを隔離
 - async context manager (`async with httpx.AsyncClient()`) のモックパターンを実装
+
+```
+Core Service の DB 例外ブランチカバー例:
+  create_stock:  db.commit() 失敗 → rollback + 400 エラー
+  delete_stock:  db.commit() 失敗 → rollback + 400 エラー
+  update_stock:  db.commit() 失敗 → rollback + 400 エラー
+  update_stock:  Pydantic V2 model_dump() → AttributeError → V1 dict() フォールバック
+  analyze_stock: db.commit() 失敗 → rollback + 500 エラー
+  check_repurchase_prohibition: 売却日時フォーマット不正 → ValueError を握り潰し False を返却
+```
 
 ```
 売買判断ロジックの全分岐カバー例:
@@ -257,7 +267,7 @@ AnalysisPanel の全分岐カバー例:
 | :--- | :--- | :---: | :--- | :---: |
 | **Phase A** | ML Service: `/predict` エンドポイント全フロー + Redis キャッシュ全操作 | +29 | ML: 78% → **100%** | ✅ 完了 |
 | **Phase B** | Frontend: `StockTable` / `AnalysisPanel` / `StatusLog` コンポーネント | +42 | Frontend: 37% → **85%**（目標 65% を大幅超過） | ✅ 完了 |
-| **Phase C** | Core Service: `crud.py` / `analysis.py` の Branch Coverage 補完 | +5 | Core: 96% → **98%** | 🔲 未着手 |
+| **Phase C** | Core Service: `crud.py` / `analysis.py` の Branch Coverage 補完 | +6 | Core: 96% → **99%**（目標 98% 超過） | ✅ 完了 |
 | **Phase D** | Frontend: 残存コンポーネント + Mutation Testing (`mutmut` / `Stryker`) 導入 | +6 | Frontend: 85% → **90%** | 🔲 未着手 |
 
 **Mutation Testing の導入タイミングについて:**
@@ -282,7 +292,7 @@ Branch Coverage が全サービス 95%+ に達してから導入します。そ�
 *   **Quality: テストカバレッジ向上プロジェクト (In Progress)**
     *   [x] Phase A: ML Service 全テスト (100% branch coverage 達成)
     *   [x] Phase B: Frontend コンポーネントテスト (branch coverage 85% 達成)
-    *   [ ] Phase C: Core Service branch coverage 補完 (目標 98%)
+    *   [x] Phase C: Core Service branch coverage 補完 (99% 達成)
     *   [ ] Phase D: 残存コンポーネント + Mutation Testing 導入
 *   **Phase 3: Cloud Native & GitOps (Planned)**
     *   [ ] Kubernetes (EKS/GKE) へのデプロイ

@@ -216,3 +216,49 @@ class TestUpdateStock:
         assert data["current_price"] == 2850.5
         assert data["ai_prediction"] == "up"
         assert data["ai_suggestion"] == "BUY"
+
+
+# ─── DB 例外ハンドリング ──────────────────────────────────────────────────────
+
+class TestDBErrors:
+    """各 CRUD 関数の except ブロックを網羅するテスト。
+    db.commit() をモックして例外を発生させ、ロールバックとエラーレスポンスを検証する。
+    """
+
+    def test_create_stock_db_commit_error_returns_400(self, client, db_session):
+        """create_stock で db.commit() 失敗時は400を返すこと"""
+        with patch("db.crud.yf.Ticker", return_value=_make_yf_mock()), \
+             patch.object(db_session, "commit", side_effect=Exception("DB down")):
+            response = client.post("/api/stocks", json={"stock_symbol": "AAPL"})
+        assert response.status_code == 400
+        assert "保存エラー" in response.json()["detail"]
+
+    def test_delete_stock_db_commit_error_returns_400(self, client, db_session):
+        """delete_stock で db.commit() 失敗時は400を返すこと"""
+        _insert_stock(db_session, "7203", order_datetime="未取得")
+        with patch.object(db_session, "commit", side_effect=Exception("DB down")):
+            response = client.delete("/api/stocks/7203")
+        assert response.status_code == 400
+        assert "削除処理中" in response.json()["detail"]
+
+    def test_update_stock_db_commit_error_returns_400(self, client, db_session):
+        """update_stock で db.commit() 失敗時は400を返すこと"""
+        _insert_stock(db_session, "7203")
+        with patch.object(db_session, "commit", side_effect=Exception("DB down")):
+            response = client.put("/api/stocks/7203", json={"order_id": "ORDER123"})
+        assert response.status_code == 400
+        assert "更新中" in response.json()["detail"]
+
+    def test_update_stock_pydantic_v1_fallback(self, db_session):
+        """model_dump() が AttributeError を投げる場合、dict() フォールバックが動作すること
+        (Pydantic V1 互換性ブランチ)"""
+        from db.crud import update_stock
+        _insert_stock(db_session, "7203")
+
+        mock_update = MagicMock()
+        mock_update.model_dump.side_effect = AttributeError("Pydantic V1 env")
+        mock_update.dict.return_value = {"order_id": "ORDER_V1"}
+
+        result = update_stock(db_session, "7203", mock_update)
+        assert result["status"] == "success"
+        assert result["data"].order_id == "ORDER_V1"
