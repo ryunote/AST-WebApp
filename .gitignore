@@ -15,4 +15,10 @@
 # テスト生成ファイル
 *.db
 .pytest_cache/
+.coverage
+.mutmut-cache
+
+# Stryker 生成ファイル
+frontend/.stryker-tmp/
+frontend/reports/
 

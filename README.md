@@ -176,19 +176,21 @@ cd frontend && npm test
 | :--- | :--- | :--- |
 | **Line Coverage** | 実行された行の割合 | ベースライン確認 |
 | **Branch Coverage** | if/else 全分岐の検証 | 主要KPI（現在測定中） |
-| **Mutation Testing** | バグを埋め込んでテストが検知できるか | Phase D 完了後に導入 |
+| **Mutation Testing** | バグを埋め込んでテストが検知できるか | **Phase D で導入済み** |
 
 Branch Coverage が Line Coverage より厳しい理由: `if A and B:` という1行コードでも「A=True/B=False」「A=False/B=True」など分岐ごとにテストが要求されます。行が実行されただけではロジックの正確性は保証されません。
 
+Mutation Testing が Branch Coverage より厳しい理由: `if x > 0` を `if x >= 0` に書き換えても行も分岐も通過する。テストが境界値を正確に検証していなければ mutation は生き残る（survive）。
+
 ---
 
-### 現在のテスト構成（164テスト）
+### 現在のテスト構成（169テスト）
 
-| サービス | テストファイル | テスト数 | Line Coverage | Branch Coverage |
-| :--- | :--- | :---: | :---: | :---: |
-| **Core Service** | `test_stocks_router.py` / `test_analysis_logic.py` / `test_main.py` | 44 | 99% | **99%** |
-| **ML Service** | `test_predict_endpoint.py` / `test_ml_engine.py` / `test_market_data.py` / `test_cache.py` / `test_main.py` | 46 | **100%** | **100%** |
-| **Frontend** | `StockInputForm.test.tsx` / `useStocks.test.ts` / `api.test.ts` / `page.test.tsx` / `StockTable.test.tsx` / `AnalysisPanel.test.tsx` / `StatusLog.test.tsx` | 74 | 79% | **85%** |
+| サービス | テストファイル | テスト数 | Line Coverage | Branch Coverage | Mutation Score |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **Core Service** | `test_stocks_router.py` / `test_analysis_logic.py` / `test_main.py` | 44 | 99% | **99%** | — |
+| **ML Service** | `test_predict_endpoint.py` / `test_ml_engine.py` / `test_market_data.py` / `test_cache.py` / `test_main.py` | 46 | **100%** | **100%** | — |
+| **Frontend** | `StockInputForm.test.tsx` / `useStocks.test.ts` / `api.test.ts` / `page.test.tsx` / `StockTable.test.tsx` / `AnalysisPanel.test.tsx` / `StatusLog.test.tsx` / `ThemeToggle.test.tsx` | 79 | 87% | **95%** | **60%** |
 
 ---
 
@@ -236,12 +238,20 @@ Core Service の DB 例外ブランチカバー例:
   set_prediction: key形式 / TTL定数 / JSON直列化 / Redis停止 / SET例外
 ```
 
-**Frontend (Jest + React Testing Library)**
+**Frontend (Jest + React Testing Library + Stryker)**
 
 - `@testing-library/react` の `renderHook` / `fireEvent` / `waitFor` を活用
 - `apiClient` をモック化しネットワーク不要なオフライン実行
 - カスタムフック `useStocks` を Presentation Component から独立させ単体テスト
 - バリデーションロジック（空入力・英字入力・API失敗後の入力フォーム非クリア）を網羅
+- `next-themes` をモック化し `ThemeToggle` の dark/light 両分岐を検証
+- **Stryker Mutation Testing** 導入: 310 mutant を生成し mutation score **60%** を計測・可視化
+
+```
+ThemeToggle の全分岐カバー例:
+  theme="light" → 太陽アイコン表示 / click → setTheme("dark")
+  theme="dark"  → 月アイコン表示   / click → setTheme("light")
+```
 
 ```
 StockTable の全分岐カバー例:
@@ -268,10 +278,48 @@ AnalysisPanel の全分岐カバー例:
 | **Phase A** | ML Service: `/predict` エンドポイント全フロー + Redis キャッシュ全操作 | +29 | ML: 78% → **100%** | ✅ 完了 |
 | **Phase B** | Frontend: `StockTable` / `AnalysisPanel` / `StatusLog` コンポーネント | +42 | Frontend: 37% → **85%**（目標 65% を大幅超過） | ✅ 完了 |
 | **Phase C** | Core Service: `crud.py` / `analysis.py` の Branch Coverage 補完 | +6 | Core: 96% → **99%**（目標 98% 超過） | ✅ 完了 |
-| **Phase D** | Frontend: 残存コンポーネント + Mutation Testing (`mutmut` / `Stryker`) 導入 | +6 | Frontend: 85% → **90%** | 🔲 未着手 |
+| **Phase D** | Frontend: `ThemeToggle` + Stryker / mutmut Mutation Testing 導入 | +5 | Frontend: 85% → **95%** / Mutation Score: **60%** | ✅ 完了 |
 
-**Mutation Testing の導入タイミングについて:**
-Branch Coverage が全サービス 95%+ に達してから導入します。それ以前は未カバーの行が多すぎてノイズになるためです。Python には `mutmut`、TypeScript/Next.js には `@stryker-mutator/core` を想定しています。
+### Mutation Testing の詳細
+
+**Frontend: Stryker**
+
+Branch Coverage が「コードが実行されたか」を測るのに対し、Mutation Testing は「テストがコードの**意図**を正確に検証しているか」を測る。
+Stryker は元のコードに微小な変異（演算子変更・条件反転・定数書き換え等）を 310 個注入し、テストが変異を検知（kill）できるかを確認する。
+
+```
+# 実行コマンド (frontend/ から)
+npm run test:mutation
+# → reports/mutation/html/index.html に詳細レポートを出力
+```
+
+**Stryker 初回計測結果 (2026-05-14)**
+
+| ファイル | Killed | Survived | Mutation Score |
+| :--- | :---: | :---: | :---: |
+| `useStocks.ts` | 42 | 7 | **85.7%** ← 最高品質 |
+| `lib/api.ts` | 15 | 5 | **75.0%** |
+| `ThemeToggle.tsx` | 18 | 8 | **69.2%** |
+| `StockTable.tsx` | 44 | 27 | **62.0%** |
+| `AnalysisPanel.tsx` | 27 | 23 | **54.0%** |
+| `StatusLog.tsx` | 5 | 5 | **50.0%** |
+| `StockInputForm.tsx` | 36 | 48 | **42.9%** |
+| **合計** | **187** | **123** | **60.3%** |
+
+Survived mutant の主な原因: 文字列リテラル変異（日本語テキストの変異はテストが `.toContain` で部分一致検証のため生き残る）。`toEqual` での完全一致に強化することで mutation score 向上が見込まれる。
+
+**Python: mutmut**
+
+```bash
+# インストール
+pyenv exec pip install mutmut
+
+# 実行コマンド (リポジトリルートから)
+pyenv exec mutmut run
+pyenv exec mutmut results
+```
+
+設定ファイル: `pyproject.toml` (`paths_to_mutate = "backend-ml/services/"`)
 
 ---
 
@@ -293,7 +341,7 @@ Branch Coverage が全サービス 95%+ に達してから導入します。そ�
     *   [x] Phase A: ML Service 全テスト (100% branch coverage 達成)
     *   [x] Phase B: Frontend コンポーネントテスト (branch coverage 85% 達成)
     *   [x] Phase C: Core Service branch coverage 補完 (99% 達成)
-    *   [ ] Phase D: 残存コンポーネント + Mutation Testing 導入
+    *   [x] Phase D: ThemeToggle テスト + Stryker / mutmut 導入（mutation score 60% 計測）
 *   **Phase 3: Cloud Native & GitOps (Planned)**
     *   [ ] Kubernetes (EKS/GKE) へのデプロイ
     *   [ ] ArgoCDによるGitOpsフローの構築
