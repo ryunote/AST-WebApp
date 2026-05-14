@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* next-themesが<html>に付与する .dark クラスでダークモードを切り替える */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
