@@ -182,13 +182,13 @@ Branch Coverage が Line Coverage より厳しい理由: `if A and B:` という
 
 ---
 
-### 現在のテスト構成（116テスト）
+### 現在のテスト構成（158テスト）
 
 | サービス | テストファイル | テスト数 | Line Coverage | Branch Coverage |
 | :--- | :--- | :---: | :---: | :---: |
 | **Core Service** | `test_stocks_router.py` / `test_analysis_logic.py` / `test_main.py` | 38 | 96% | 96% |
 | **ML Service** | `test_predict_endpoint.py` / `test_ml_engine.py` / `test_market_data.py` / `test_cache.py` / `test_main.py` | 46 | **100%** | **100%** |
-| **Frontend** | `StockInputForm.test.tsx` / `useStocks.test.ts` / `api.test.ts` / `page.test.tsx` | 32 | 37% | 30% |
+| **Frontend** | `StockInputForm.test.tsx` / `useStocks.test.ts` / `api.test.ts` / `page.test.tsx` / `StockTable.test.tsx` / `AnalysisPanel.test.tsx` / `StatusLog.test.tsx` | 74 | 79% | **85%** |
 
 ---
 
@@ -233,6 +233,22 @@ Branch Coverage が Line Coverage より厳しい理由: `if A and B:` という
 - カスタムフック `useStocks` を Presentation Component から独立させ単体テスト
 - バリデーションロジック（空入力・英字入力・API失敗後の入力フォーム非クリア）を網羅
 
+```
+StockTable の全分岐カバー例:
+  loading=true / stocks=0 件  → ローディング表示
+  loading=true / stocks=1 件+ → テーブル表示（early return をすり抜ける境界ケース）
+  ai_prediction: "up" / "down" / null
+  ai_suggestion: BUY(赤) / SELL(緑) / WAIT(黄) / その他(グレー) / null
+  current_price: 値あり → "¥{price}" / null → "---"
+  order_datetime: "未取得" → "未保有" / それ以外 → 日時表示
+
+AnalysisPanel の全分岐カバー例:
+  stocks=0 件  → ボタン disabled
+  stocks=1 件+ → ボタン enabled / 分析中は「連携処理中...」+ プログレスバー表示
+  API 成功     → current_price を toFixed(1) でフォーマットしてログ出力
+  API 例外     → [Error] ログ / onAnalysisComplete は例外後も必ず呼ばれること
+```
+
 ---
 
 ### 品質向上ロードマップ
@@ -240,9 +256,9 @@ Branch Coverage が Line Coverage より厳しい理由: `if A and B:` という
 | Phase | 対象 | 追加テスト数 | カバレッジ目標 | 状態 |
 | :--- | :--- | :---: | :--- | :---: |
 | **Phase A** | ML Service: `/predict` エンドポイント全フロー + Redis キャッシュ全操作 | +29 | ML: 78% → **100%** | ✅ 完了 |
-| **Phase B** | Frontend: `StockTable` / `AnalysisPanel` コンポーネント | +12 | Frontend: 37% → **65%** | 🔲 次フェーズ |
+| **Phase B** | Frontend: `StockTable` / `AnalysisPanel` / `StatusLog` コンポーネント | +42 | Frontend: 37% → **85%**（目標 65% を大幅超過） | ✅ 完了 |
 | **Phase C** | Core Service: `crud.py` / `analysis.py` の Branch Coverage 補完 | +5 | Core: 96% → **98%** | 🔲 未着手 |
-| **Phase D** | Frontend: 残存コンポーネント + Mutation Testing (`mutmut` / `Stryker`) 導入 | +6 | Frontend: 65% → **75%** | 🔲 未着手 |
+| **Phase D** | Frontend: 残存コンポーネント + Mutation Testing (`mutmut` / `Stryker`) 導入 | +6 | Frontend: 85% → **90%** | 🔲 未着手 |
 
 **Mutation Testing の導入タイミングについて:**
 Branch Coverage が全サービス 95%+ に達してから導入します。それ以前は未カバーの行が多すぎてノイズになるためです。Python には `mutmut`、TypeScript/Next.js には `@stryker-mutator/core` を想定しています。
@@ -265,7 +281,7 @@ Branch Coverage が全サービス 95%+ に達してから導入します。そ�
     *   [ ] 生成AI (LLM) 連携によるニュース分析機能のプロトタイピング
 *   **Quality: テストカバレッジ向上プロジェクト (In Progress)**
     *   [x] Phase A: ML Service 全テスト (100% branch coverage 達成)
-    *   [ ] Phase B: Frontend コンポーネントテスト (目標 65%)
+    *   [x] Phase B: Frontend コンポーネントテスト (branch coverage 85% 達成)
     *   [ ] Phase C: Core Service branch coverage 補完 (目標 98%)
     *   [ ] Phase D: 残存コンポーネント + Mutation Testing 導入
 *   **Phase 3: Cloud Native & GitOps (Planned)**
