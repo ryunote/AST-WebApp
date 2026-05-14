@@ -1,0 +1,6 @@
+[tool.mutmut]
+# ML Service (100% branch coverage) を mutation testing の対象とする
+# Core Service も対象に追加可能 (backend/db/crud.py, backend/routers/analysis.py)
+paths_to_mutate = "backend-ml/services/"
+tests_to_run = "backend-ml/tests/"
+runner = "pyenv exec python -m pytest"
