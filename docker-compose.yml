@@ -30,6 +30,22 @@ services:
       - redis
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
+  # --- バックエンド インサイトサービス ---
+  insight-service:
+    build: ./backend-insight
+    container_name: stock-insight
+    ports:
+      - "8002:8002"  # ホストの8002番で直接アクセス/デバッグ可能にする
+    volumes:
+      - ./backend-insight:/app
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NEWSAPI_KEY=${NEWSAPI_KEY}
+    depends_on:
+      - redis
+    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+
   # --- キャッシュ (Rate Limit回避・高速化) ---
   redis:
     image: redis:7-alpine
