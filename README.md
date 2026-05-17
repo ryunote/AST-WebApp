@@ -20,7 +20,7 @@ https://github.com/user-attachments/assets/37e2d080-890b-4a8c-bc28-46ec11759a0d
 ## 🏗 アーキテクチャ (Phase 2)
 
 **「責務の分離 (Separation of Concerns)」** を物理的なコンテナレベルで実現しました。
-Webサーバーの応答性（Core）と、重い機械学習処理（ML）を分離することで、将来的なスケーラビリティを確保しています。
+Webサーバーの応答性（Core）、重い機械学習処理（ML）、LLMを用いた定性インサイト生成（Insight）を分離することで、将来的なスケーラビリティを確保しています。
 
 ```mermaid
 graph TD
@@ -31,11 +31,15 @@ graph TD
         
         subgraph "Microservices Interaction"
             Core -->|HTTP Request| ML[ML Service: FastAPI]
+            Core -->|HTTP Request| Insight[Insight Service: FastAPI]
             ML -->|Fetch/Cache| Redis[(Redis Cache)]
+            Insight -->|Cache| Redis
         end
         
         Core -->|SQL| DB[(PostgreSQL)]
         ML -->|Fetch| Yahoo[External: Yahoo Finance]
+        Insight -->|Fetch| NewsAPI[External: News API]
+        Insight -->|LLM API| Claude[Anthropic Claude API]
     end
 ```
 
@@ -45,10 +49,11 @@ graph TD
 | :--- | :--- | :--- | :--- |
 | **Frontend** | **Web UI** | **Next.js (App Router)** | TypeScriptによる型安全性とコンポーネント指向UI。Phase 1から継続。 |
 | **Backend** | **Core Service** | **FastAPI (Python)** | **Port: 8000**. API Gateway的役割。DB操作、ユーザーリクエストのハンドリングを担当。 |
-| **Backend** | **ML Service** | **FastAPI (Python)** | **Port: 8001**. 計算・分析専用のマイクロサービス。XGBoostによる推論を実行。 |
-| **Cache** | **Redis** | **Redis 7** | **New**. 株価データのキャッシュ層。外部APIへの負荷軽減とレスポンス高速化を実現。 |
+| **Backend** | **ML Service** | **FastAPI (Python)** | **Port: 8001**. 計算・分析専用のマイクロサービス。XGBoostによる騰落予測を実行。 |
+| **Backend** | **Insight Service** | **FastAPI (Python)** | **Port: 8002**. **New**. LLMを用いた定性インサイト生成。ニュース感情分析（`/insight/market`）とユーザー売買傾向分析（`/insight/behavior`）を担当。 |
+| **Cache** | **Redis** | **Redis 7** | 株価データ・LLM分析結果のキャッシュ層。外部APIへの負荷軽減とレスポンス高速化を実現。 |
 | **Database** | **DB** | **PostgreSQL 15** | 売買履歴、分析結果、銘柄情報の永続化。 |
-| **Infra** | **Orchestration** | **Docker Compose** | 複数コンテナ (`stock-core`, `stock-ml`, `stock-db`, `redis`) の一括管理。 |
+| **Infra** | **Orchestration** | **Docker Compose** | 複数コンテナ (`stock-core`, `stock-ml`, `stock-insight`, `stock-db`, `redis`) の一括管理。 |
 
 ---
 
@@ -59,7 +64,7 @@ graph TD
 ```text
 ast-web/
 ├── docker-compose.yml          # 全サービスのオーケストレーション定義
-├── .github/workflows/test.yml  # CI: backend / ml / frontend の3並行ジョブ
+├── .github/workflows/test.yml  # CI: backend / ml / insight / frontend の4並行ジョブ
 │
 ├── backend/                    # [Core Service] 銘柄管理・DB操作・API Gateway
 │   ├── main.py                 # エントリーポイント (Port 8000)
@@ -67,7 +72,7 @@ ast-web/
 │   ├── db/                     # DB接続・モデル定義
 │   ├── routers/
 │   │   ├── stocks.py           # 銘柄CRUD
-│   │   └── analysis.py         # 分析オーケストレーター (ML Serviceを呼び出す)
+│   │   └── analysis.py         # 分析オーケストレーター (ML Service / Insight Service を並列呼び出し)
 │   └── tests/
 │       ├── conftest.py         # SQLite in-memory DB fixture・TestClient DI
 │       └── unit/
@@ -87,6 +92,17 @@ ast-web/
 │           ├── test_ml_engine.py        # XGBoost予測ロジック (8テスト)
 │           ├── test_market_data.py      # yfinanceラッパー (8テスト)
 │           └── test_cache.py            # Redis操作・障害時Degradation (15テスト)
+│
+├── backend-insight/            # [Insight Service] LLMによる定性インサイト生成
+│   ├── main.py                 # エントリーポイント (Port 8002)
+│   ├── routers/
+│   │   ├── market.py           # /insight/market/{symbol} ニュース感情分析
+│   │   └── behavior.py         # /insight/behavior/{user_id} 売買傾向分析
+│   ├── services/
+│   │   ├── news_fetcher.py     # ニュース取得・前処理 (NewsAPI)
+│   │   ├── llm_client.py       # Anthropic Claude API ラッパー
+│   │   └── cache.py            # Redis キャッシュ (Graceful Degradation)
+│   └── tests/
 │
 └── frontend/                   # [Frontend] Next.js アプリケーション
     ├── app/                    # App Router Pages
@@ -336,7 +352,7 @@ pyenv exec mutmut results
     *   [x] サービス間通信の実装 (HTTPX)
     *   [x] Redisによるキャッシュ層の導入 (Rate Limit回避・高速化)
     *   [x] GitHub Actions CI の構築 (3並行ジョブ)
-    *   [ ] 生成AI (LLM) 連携によるニュース分析機能のプロトタイピング
+    *   [ ] Insight Service 構築: ニュース感情分析 (`/insight/market`) のプロトタイピング
 *   **Quality: テストカバレッジ向上プロジェクト (In Progress)**
     *   [x] Phase A: ML Service 全テスト (100% branch coverage 達成)
     *   [x] Phase B: Frontend コンポーネントテスト (branch coverage 85% 達成)
