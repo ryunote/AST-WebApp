@@ -39,7 +39,7 @@ graph TD
         Core -->|SQL| DB[(PostgreSQL)]
         ML -->|Fetch| Yahoo[External: Yahoo Finance]
         Insight -->|Fetch| NewsAPI[External: News API]
-        Insight -->|LLM API| Claude[Anthropic Claude API]
+        Insight -->|LLM API| Gemini[Google Gemini API]
     end
 ```
 
@@ -94,30 +94,53 @@ ast-web/
 │           └── test_cache.py            # Redis操作・障害時Degradation (15テスト)
 │
 ├── backend-insight/            # [Insight Service] LLMによる定性インサイト生成
-│   ├── main.py                 # エントリーポイント (Port 8002)
+│   ├── main.py                 # エントリーポイント (Port 8002) + CORSMiddleware
 │   ├── routers/
-│   │   ├── market.py           # /insight/market/{symbol} ニュース感情分析
-│   │   └── behavior.py         # /insight/behavior/{user_id} 売買傾向分析
+│   │   └── market.py           # /insight/market/{symbol} ニュース感情分析
+│   ├── schemas/
+│   │   └── market.py           # InsightResponse / Article Pydantic モデル
 │   ├── services/
-│   │   ├── news_fetcher.py     # ニュース取得・前処理 (NewsAPI)
-│   │   ├── llm_client.py       # Anthropic Claude API ラッパー
-│   │   └── cache.py            # Redis キャッシュ (Graceful Degradation)
+│   │   ├── symbol_resolver.py  # 証券コード → 企業名変換 (yfinance)
+│   │   ├── news_fetcher.py     # ニュース取得・前処理 (NewsAPI / httpx)
+│   │   ├── llm_client.py       # Google Gemini 2.5 Flash ラッパー (google-genai SDK)
+│   │   └── cache.py            # Redis キャッシュ TTL=3h (Graceful Degradation)
 │   └── tests/
+│       ├── conftest.py
+│       └── unit/
+│           ├── test_symbol_resolver.py  # yfinanceモック (4テスト)
+│           ├── test_news_fetcher.py     # NewsAPIモック (13テスト)
+│           ├── test_llm_client.py       # Geminiモック (12テスト)
+│           ├── test_cache.py            # Redisモック (11テスト)
+│           └── test_market_endpoint.py  # エンドポイント統合 (8テスト)
 │
 └── frontend/                   # [Frontend] Next.js アプリケーション
     ├── app/                    # App Router Pages
-    ├── components/             # UI Components
+    ├── components/
+    │   ├── StockTable.tsx           # 銘柄一覧 (行クリックでInsight遅延取得・展開)
+    │   ├── NewsInsightPanel.tsx     # ニュース分析展開パネル (感情/サマリー/イベント/リスク)
+    │   ├── SignalConvergenceBadge.tsx # XGBoost×Geminiシグナル収束バッジ
+    │   ├── AnalysisPanel.tsx        # ML一括分析コントロール
+    │   └── ...                      # その他共通コンポーネント
     ├── hooks/                  # useStocks カスタムフック
-    ├── lib/                    # API Client
-    ├── types/                  # TypeScript型定義
+    ├── lib/
+    │   ├── api.ts              # APIクライアント (apiClient / getMarketInsight)
+    │   └── convergence.ts      # computeConvergence() ユーティリティ
+    ├── types/                  # TypeScript型定義 (InsightResponse / ConvergenceState)
     └── __tests__/
         ├── page.test.tsx
         ├── components/
-        │   └── StockInputForm.test.tsx  # バリデーション・操作 (9テスト)
+        │   ├── StockTable.test.tsx          # 銘柄行・Insight展開 (30テスト)
+        │   ├── NewsInsightPanel.test.tsx    # 感情/メタ/イベント/リスク (12テスト)
+        │   ├── SignalConvergenceBadge.test.tsx # 4状態 (4テスト)
+        │   ├── AnalysisPanel.test.tsx
+        │   ├── StockInputForm.test.tsx      # バリデーション・操作 (9テスト)
+        │   ├── StatusLog.test.tsx
+        │   └── ThemeToggle.test.tsx
         ├── hooks/
-        │   └── useStocks.test.ts        # フックの状態管理 (10テスト)
+        │   └── useStocks.test.ts            # フックの状態管理 (10テスト)
         └── lib/
-            └── api.test.ts              # APIクライアント (7テスト)
+            ├── api.test.ts                  # apiClient + getMarketInsight (12テスト)
+            └── convergence.test.ts          # computeConvergence 全分岐 (10テスト)
 ```
 
 ---
@@ -140,12 +163,21 @@ Phase 1のコンテナが残っている場合は、競合を避けるため `do
 docker compose up --build
 ```
 
+### 2.5. 環境変数の設定
+
+```bash
+cp .env.example .env
+# .env を編集して以下の実値を設定:
+#   POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB
+#   GEMINI_API_KEY  — Google AI Studio (https://aistudio.google.com/) で取得
+#   NEWSAPI_KEY     — NewsAPI (https://newsapi.org/register) で取得（無料枠: 100リクエスト/日）
+```
+
 ### 3. アクセス
 *   **Webアプリ**: [http://localhost:3000](http://localhost:3000)
 *   **Core API Docs (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
-    *   メインのAPIエンドポイント確認用。
 *   **ML API Docs (Swagger UI)**: [http://localhost:8001/docs](http://localhost:8001/docs)
-    *   計算サービスの単体動作確認用。
+*   **Insight API Docs (Swagger UI)**: [http://localhost:8002/docs](http://localhost:8002/docs)
 
 ### 4. 動作確認
 Webアプリ上で「一括分析」ボタンを押すと、Frontend -> Core -> ML -> Core -> DB -> Frontend のフローでデータが流れ、ログパネルに連携状況が表示されます。
@@ -161,6 +193,9 @@ DATABASE_URL="sqlite:///./test.db" pytest backend/tests/ -v
 # ML Service
 pytest backend-ml/tests/ -v
 
+# Insight Service
+pytest backend-insight/tests/ -v
+
 # Frontend
 cd frontend && npm test
 ```
@@ -172,11 +207,18 @@ cd frontend && npm test
 1.  **マイクロサービス連携**
     *   **Core Service**: ユーザー管理、保有銘柄のCRUD、売買判断の最終決定。
     *   **ML Service**: 株価データの取得、XGBoostによる騰落予測。
+    *   **Insight Service**: NewsAPI によるニュース取得 → Google Gemini 2.5 Flash による感情分析 → JSON構造化出力。
     *   **連携ログ**: フロントエンド上で「CoreからMLへリクエスト送信中...」といった詳細な処理状況を可視化。
-2.  **データ整合性の向上**
+2.  **デュアルシグナルUI**
+    *   銘柄行をクリックすると Insight Service からニュース感情を遅延取得・展開表示。
+    *   XGBoost予測（up/down）と Gemini感情（positive/negative/neutral）を並列表示し、**シグナル収束状態**（bullish / bearish / divergent / no_data）をバッジで示す。
+    *   売買の最終判断はユーザーが行う。システムは両シグナルを提示するのみ。
+3.  **データ整合性の向上**
     *   **浮動小数点数対策**: バックエンド/フロントエンド双方で適切な丸め処理を行い、正確な価格情報を表示・保存。
-3.  **パフォーマンス最適化**
-    *   **Redisキャッシュ**: 頻繁な外部APIアクセスを抑制し、2回目以降の分析を高速化（実装中）。
+4.  **パフォーマンス最適化**
+    *   **Redisキャッシュ**: ML 予測結果・Insight 分析結果をキャッシュ（Insight: TTL 3時間）。外部 API コストを削減し、2回目以降は即時返却。Redis 障害時も Graceful Degradation で継続動作。
+5.  **本番対応 CORS 設定**
+    *   `ALLOWED_ORIGINS` 環境変数でオリジンを注入。`docker-compose.yml` で開発用デフォルト `http://localhost:3000` を設定。本番では環境変数上書きのみで対応可能。
 
 ---
 
@@ -200,13 +242,14 @@ Mutation Testing が Branch Coverage より厳しい理由: `if x > 0` を `if x
 
 ---
 
-### 現在のテスト構成（169テスト）
+### 現在のテスト構成（258テスト）
 
 | サービス | テストファイル | テスト数 | Line Coverage | Branch Coverage | Mutation Score |
 | :--- | :--- | :---: | :---: | :---: | :---: |
 | **Core Service** | `test_stocks_router.py` / `test_analysis_logic.py` / `test_main.py` | 44 | 99% | **99%** | — |
 | **ML Service** | `test_predict_endpoint.py` / `test_ml_engine.py` / `test_market_data.py` / `test_cache.py` / `test_main.py` | 46 | **100%** | **100%** | — |
-| **Frontend** | `StockInputForm.test.tsx` / `useStocks.test.ts` / `api.test.ts` / `page.test.tsx` / `StockTable.test.tsx` / `AnalysisPanel.test.tsx` / `StatusLog.test.tsx` / `ThemeToggle.test.tsx` | 79 | 87% | **95%** | **60%** |
+| **Insight Service** | `test_symbol_resolver.py` / `test_news_fetcher.py` / `test_llm_client.py` / `test_cache.py` / `test_market_endpoint.py` | 48 | — | — | — |
+| **Frontend** | `StockTable.test.tsx` / `NewsInsightPanel.test.tsx` / `SignalConvergenceBadge.test.tsx` / `convergence.test.ts` / `api.test.ts` / `useStocks.test.ts` / その他 | 120 | 87% | **95%** | **60%** |
 
 ---
 
@@ -352,7 +395,7 @@ pyenv exec mutmut results
     *   [x] サービス間通信の実装 (HTTPX)
     *   [x] Redisによるキャッシュ層の導入 (Rate Limit回避・高速化)
     *   [x] GitHub Actions CI の構築 (3並行ジョブ)
-    *   [ ] Insight Service 構築: ニュース感情分析 (`/insight/market`) のプロトタイピング
+    *   [x] Insight Service 構築: ニュース感情分析 (`/insight/market`) 実装完了（Google Gemini 2.5 Flash + NewsAPI）
 *   **Quality: テストカバレッジ向上プロジェクト (In Progress)**
     *   [x] Phase A: ML Service 全テスト (100% branch coverage 達成)
     *   [x] Phase B: Frontend コンポーネントテスト (branch coverage 85% 達成)
