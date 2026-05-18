@@ -8,10 +8,18 @@
  *   - 空リスト表示
  *   - 各セルの値 / null フォールバック
  *   - SuggestionBadge の全 5 パターン (null / BUY / SELL / WAIT / その他)
+ *   - Insight 機能 (getMarketInsight 呼び出し / 展開 / 折りたたみ)
  */
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import StockTable from '@/components/StockTable'
-import { StockInTrade } from '@/types'
+import { StockInTrade, InsightResponse } from '@/types'
+import { getMarketInsight } from '@/lib/api'
+
+jest.mock('@/lib/api', () => ({
+  getMarketInsight: jest.fn(),
+}))
+
+const mockGetMarketInsight = getMarketInsight as jest.MockedFunction<typeof getMarketInsight>
 
 // ─── ヘルパー ────────────────────────────────────────────────────────────────
 
@@ -23,6 +31,19 @@ function makeStock(overrides: Partial<StockInTrade> = {}): StockInTrade {
     order_datetime: '未取得',
     order_settlement_datetime: '',
     average_acquisition_price: 0,
+    ...overrides,
+  }
+}
+
+function makeInsight(overrides: Partial<InsightResponse> = {}): InsightResponse {
+  return {
+    symbol: '7203.T',
+    sentiment: 'positive',
+    summary: 'テスト分析サマリー',
+    key_events: [],
+    risk_factors: [],
+    news_count: 5,
+    cached: false,
     ...overrides,
   }
 }
@@ -54,9 +75,9 @@ describe('StockTable - 空リスト', () => {
     expect(screen.getByText('登録された銘柄はありません。')).toBeInTheDocument()
   })
 
-  it('全テーブルヘッダー 7 件が表示されること', () => {
+  it('全テーブルヘッダー 8 件が表示されること', () => {
     render(<StockTable stocks={[]} loading={false} />)
-    ;['証券番号', '企業名', 'AI提案', '現在株価', 'AI予測', '最終分析', '保有状況'].forEach(h =>
+    ;['証券番号', '企業名', 'AI提案', '現在株価', 'AI予測', '最終分析', '保有状況', 'ニュース感情'].forEach(h =>
       expect(screen.getByText(h)).toBeInTheDocument()
     )
   })
@@ -155,5 +176,97 @@ describe('StockTable - SuggestionBadge', () => {
   it('ai_suggestion が "HOLD" のとき（その他ケース）バッジテキストが表示されること', () => {
     render(<StockTable stocks={[makeStock({ ai_suggestion: 'HOLD' })]} loading={false} />)
     expect(screen.getByText('HOLD')).toBeInTheDocument()
+  })
+})
+
+// ─── Insight 機能 ─────────────────────────────────────────────────────────────
+
+describe('StockTable - Insight機能', () => {
+  beforeEach(() => mockGetMarketInsight.mockClear())
+
+  it('ST-01: 銘柄行の初期状態で「クリックして取得」CTAが表示されること', () => {
+    render(<StockTable stocks={[makeStock()]} loading={false} />)
+    expect(screen.getByText(/クリックして取得/)).toBeInTheDocument()
+  })
+
+  it('ST-02: ヘッダーに「ニュース感情」列が含まれること', () => {
+    render(<StockTable stocks={[]} loading={false} />)
+    expect(screen.getByText('ニュース感情')).toBeInTheDocument()
+  })
+
+  it('ST-03: 行クリックで getMarketInsight が呼ばれること', async () => {
+    mockGetMarketInsight.mockResolvedValue(makeInsight())
+    render(<StockTable stocks={[makeStock()]} loading={false} />)
+    fireEvent.click(screen.getByText('7203.T'))
+    expect(mockGetMarketInsight).toHaveBeenCalledWith('7203.T')
+  })
+
+  it('ST-04: クリック後ローディング中「取得中...」が表示されること', async () => {
+    mockGetMarketInsight.mockImplementation(() => new Promise(() => {})) // never resolves
+    render(<StockTable stocks={[makeStock()]} loading={false} />)
+    fireEvent.click(screen.getByText('7203.T'))
+    // <td> と内包 <span> の両方がマッチするため findAllByText を使用
+    expect((await screen.findAllByText(/取得中/)).length).toBeGreaterThan(0)
+  })
+
+  it('ST-05: 取得成功後、感情バッジ「ポジティブ」が表示されること', async () => {
+    mockGetMarketInsight.mockResolvedValue(makeInsight({ sentiment: 'positive' }))
+    render(<StockTable stocks={[makeStock()]} loading={false} />)
+    fireEvent.click(screen.getByText('7203.T'))
+    // NewsCta と NewsInsightPanel の両方に「ポジティブ」が表示される
+    expect((await screen.findAllByText(/ポジティブ/)).length).toBeGreaterThan(0)
+  })
+
+  it('ST-06: 取得成功後、NewsInsightPanelのサマリーが展開表示されること', async () => {
+    mockGetMarketInsight.mockResolvedValue(makeInsight({ summary: 'テスト分析サマリー' }))
+    render(<StockTable stocks={[makeStock()]} loading={false} />)
+    fireEvent.click(screen.getByText('7203.T'))
+    expect(await screen.findByText('テスト分析サマリー')).toBeInTheDocument()
+  })
+
+  it('ST-07: 同じ行を2回クリックすると展開が閉じること', async () => {
+    mockGetMarketInsight.mockResolvedValue(makeInsight({ summary: 'テスト分析サマリー' }))
+    render(<StockTable stocks={[makeStock()]} loading={false} />)
+    fireEvent.click(screen.getByText('7203.T'))
+    await screen.findByText('テスト分析サマリー')
+    fireEvent.click(screen.getByText('7203.T'))
+    expect(screen.queryByText('テスト分析サマリー')).not.toBeInTheDocument()
+  })
+
+  it('ST-08: 取得済み銘柄の2回目クリック（再展開）ではAPIが再呼び出しされないこと', async () => {
+    mockGetMarketInsight.mockResolvedValue(makeInsight())
+    render(<StockTable stocks={[makeStock()]} loading={false} />)
+    // 1回目クリック → 展開
+    fireEvent.click(screen.getByText('7203.T'))
+    expect((await screen.findAllByText(/ポジティブ/)).length).toBeGreaterThan(0)
+    // 2回目クリック → 折りたたみ
+    fireEvent.click(screen.getByText('7203.T'))
+    // 3回目クリック → 再展開（キャッシュ利用）
+    fireEvent.click(screen.getByText('7203.T'))
+    expect((await screen.findAllByText(/ポジティブ/)).length).toBeGreaterThan(0)
+    expect(mockGetMarketInsight).toHaveBeenCalledTimes(1)
+  })
+
+  it('ST-09: getMarketInsightがエラーを投げた場合「再取得」が表示されること', async () => {
+    mockGetMarketInsight.mockRejectedValue(new Error('ネットワークエラー'))
+    render(<StockTable stocks={[makeStock()]} loading={false} />)
+    fireEvent.click(screen.getByText('7203.T'))
+    expect(await screen.findByText(/再取得/)).toBeInTheDocument()
+  })
+
+  it('ST-10: 別の行をクリックすると最後にクリックした行のみ展開されること', async () => {
+    const stocks = [
+      makeStock({ stock_symbol: '7203.T', stock_name: 'トヨタ自動車' }),
+      makeStock({ stock_symbol: '9984.T', stock_name: 'ソフトバンク' }),
+    ]
+    mockGetMarketInsight
+      .mockResolvedValueOnce(makeInsight({ symbol: '7203.T', summary: 'トヨタ分析' }))
+      .mockResolvedValueOnce(makeInsight({ symbol: '9984.T', summary: 'ソフトバンク分析' }))
+    render(<StockTable stocks={stocks} loading={false} />)
+    fireEvent.click(screen.getByText('7203.T'))
+    await screen.findByText('トヨタ分析')
+    fireEvent.click(screen.getByText('9984.T'))
+    await screen.findByText('ソフトバンク分析')
+    expect(screen.queryByText('トヨタ分析')).not.toBeInTheDocument()
   })
 })

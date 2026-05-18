@@ -1,7 +1,8 @@
 /**
  * @jest-environment jsdom
  */
-import { apiClient } from '@/lib/api'
+import { apiClient, getMarketInsight } from '@/lib/api'
+import { InsightResponse } from '@/types'
 
 const mockFetch = jest.fn()
 global.fetch = mockFetch
@@ -90,5 +91,75 @@ describe('apiClient', () => {
   it('ネットワークエラーは例外として再スローされること', async () => {
     mockFetch.mockRejectedValue(new TypeError('Failed to fetch'))
     await expect(apiClient('/api/stocks')).rejects.toThrow('Failed to fetch')
+  })
+})
+
+describe('getMarketInsight', () => {
+  beforeEach(() => mockFetch.mockClear())
+
+  // ─── 正常レスポンス ────────────────────────────────────────────────────────
+
+  it('GM-01: 200 レスポンスは InsightResponse データを返すこと', async () => {
+    const expectedInsight: InsightResponse = {
+      symbol: '7203.T',
+      sentiment: 'positive',
+      summary: 'テスト',
+      key_events: [],
+      risk_factors: [],
+      news_count: 3,
+      cached: false,
+    }
+    mockFetch.mockResolvedValue({ ok: true, json: async () => expectedInsight })
+    const result = await getMarketInsight('7203.T')
+    expect(result).toEqual(expectedInsight)
+  })
+
+  it('GM-02: 正しい URL が構築されること (/insight/market/7203.T を含む)', async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        symbol: '7203.T',
+        sentiment: 'positive',
+        summary: '',
+        key_events: [],
+        risk_factors: [],
+        news_count: 0,
+        cached: false,
+      }),
+    })
+    await getMarketInsight('7203.T')
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/insight/market/7203.T'),
+      expect.any(Object)
+    )
+  })
+
+  // ─── エラーレスポンス ──────────────────────────────────────────────────────
+
+  it('GM-03: non-ok レスポンスで detail あり → detail メッセージで例外をスローすること', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: 'Not Found',
+      json: async () => ({ detail: '銘柄が見つかりません' }),
+    })
+    await expect(getMarketInsight('7203.T')).rejects.toThrow('銘柄が見つかりません')
+  })
+
+  it('GM-04: non-ok レスポンスで detail なし → statusText で例外をスローすること', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      statusText: 'Service Unavailable',
+      json: async () => ({}),
+    })
+    await expect(getMarketInsight('7203.T')).rejects.toThrow('Service Unavailable')
+  })
+
+  // ─── ネットワークエラー ────────────────────────────────────────────────────
+
+  it('GM-05: ネットワークエラー (TypeError) は再スローされること', async () => {
+    mockFetch.mockRejectedValue(new TypeError('Failed to fetch'))
+    await expect(getMarketInsight('7203.T')).rejects.toThrow('Failed to fetch')
   })
 })
