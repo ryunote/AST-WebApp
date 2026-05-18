@@ -68,6 +68,7 @@ services:
     environment:
       # ブラウザから見たバックエンドのURL
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_INSIGHT_URL=http://localhost:8002
     depends_on:
       - backend
 
