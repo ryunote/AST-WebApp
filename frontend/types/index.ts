@@ -38,6 +38,26 @@ export type StockActionResult = {
 };
 
 /**
+ * Insight Service (/insight/market/{symbol}) のレスポンス型。
+ * Google Gemini によるニュース感情分析結果。
+ */
+export type InsightResponse = {
+  symbol: string;
+  sentiment: "positive" | "negative" | "neutral";
+  summary: string;
+  key_events: string[];
+  risk_factors: string[];
+  news_count: number;
+  cached: boolean;
+};
+
+/**
+ * XGBoost予測とGeminiニュース感情の収束状態。
+ * ユーザーの注意を向けるべき銘柄を判定するために使用する。
+ */
+export type ConvergenceState = "bullish" | "bearish" | "divergent" | "no_data";
+
+/**
  * システムログのデータ構造
  */
 export type LogEntry = {

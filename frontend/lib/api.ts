@@ -1,6 +1,8 @@
 // 環境変数からAPIのBase URLを取得。設定がない場合はローカル開発用のデフォルト値を使用。
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+const INSIGHT_API_BASE_URL = process.env.NEXT_PUBLIC_INSIGHT_URL || "http://localhost:8002";
+
 /**
  * 共通APIクライアント。
  * fetchのラッパーとして機能し、ベースURLの結合、JSONヘッダーの付与、
@@ -40,6 +42,33 @@ export async function apiClient<T>(endpoint: string, options: RequestInit = {}):
   } catch (error) {
     // ネットワークエラーなどをキャッチして再スロー
     console.error(`API Request Failed: ${endpoint}`, error);
+    throw error;
+  }
+}
+
+/**
+ * Insight Serviceからニュース感情分析を取得する。
+ *
+ * @param symbol - 証券コード (例: "7203.T", "AAPL")
+ * @returns InsightResponse
+ * @throws {Error} Insight API通信エラー
+ */
+export async function getMarketInsight(symbol: string): Promise<import("@/types").InsightResponse> {
+  const url = `${INSIGHT_API_BASE_URL}/insight/market/${symbol}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.detail || `Insight API Error: ${response.statusText}`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error(`Insight Request Failed: ${symbol}`, error);
     throw error;
   }
 }

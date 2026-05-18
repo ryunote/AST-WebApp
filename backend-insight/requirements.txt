@@ -1,0 +1,21 @@
+# Webフレームワーク
+fastapi
+uvicorn
+pydantic
+
+# 証券コード解決
+yfinance
+
+# ニュース取得
+httpx
+
+# LLM (Google Gemini)
+google-genai
+google-api-core
+
+# キャッシュ
+redis[hiredis]
+
+# テスト
+pytest
+httpx[test]
