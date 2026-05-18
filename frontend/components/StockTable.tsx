@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { StockInTrade, InsightResponse } from "@/types";
 import { getMarketInsight } from "@/lib/api";
 import { computeConvergence } from "@/lib/convergence";
@@ -25,7 +25,7 @@ const TABLE_HEADERS = [
   "現在株価",
   "最終分析",
   "保有状況",
-  "", // 展開トグル列
+  "ニュース感情",
 ];
 
 /**
@@ -74,9 +74,6 @@ export default function StockTable({ stocks, loading }: Props) {
         <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
           <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
           自動売買中の銘柄一覧
-          <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">
-            行をクリックでニュース分析を表示
-          </span>
         </h2>
       </div>
 
@@ -111,9 +108,8 @@ export default function StockTable({ stocks, loading }: Props) {
                 const insight = insightMap[stock.stock_symbol];
 
                 return (
-                  <>
+                  <Fragment key={stock.stock_symbol}>
                     <tr
-                      key={stock.stock_symbol}
                       onClick={() => handleRowClick(stock.stock_symbol)}
                       className="hover:bg-blue-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
                     >
@@ -162,29 +158,27 @@ export default function StockTable({ stocks, loading }: Props) {
                         {stock.order_datetime === "未取得" ? "未保有" : stock.order_datetime}
                       </td>
 
-                      {/* 展開トグル */}
-                      <td className="px-4 py-4 whitespace-nowrap text-right">
-                        <span className="text-gray-400 dark:text-gray-500 text-xs select-none">
-                          {isExpanded ? "▲" : "▼"}
-                        </span>
+                      {/* ニュース感情 CTA */}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <NewsCta insight={insight} isExpanded={isExpanded} />
                       </td>
                     </tr>
 
                     {/* 展開行：Insight Panel */}
                     {isExpanded && (
-                      <tr key={`${stock.stock_symbol}-insight`}>
+                      <tr>
                         <td colSpan={TABLE_HEADERS.length} className="p-0">
-                          {insight?.status === "loading" && (
+                          {insight && insight.status === "loading" && (
                             <div className="px-6 py-4 bg-blue-50 dark:bg-slate-900/60 text-sm text-gray-500 dark:text-gray-400 animate-pulse border-t border-blue-100 dark:border-slate-700">
                               ニュース分析を取得中...
                             </div>
                           )}
-                          {insight?.status === "error" && (
+                          {insight && insight.status === "error" && (
                             <div className="px-6 py-4 bg-red-50 dark:bg-red-900/20 text-sm text-red-600 dark:text-red-400 border-t border-red-100 dark:border-red-800">
                               取得失敗: {insight.message}
                             </div>
                           )}
-                          {insight?.status === "loaded" && (
+                          {insight && insight.status === "loaded" && (
                             <NewsInsightPanel
                               insight={insight.data}
                               convergence={computeConvergence(
@@ -196,7 +190,7 @@ export default function StockTable({ stocks, loading }: Props) {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })
             )}
@@ -206,6 +200,50 @@ export default function StockTable({ stocks, loading }: Props) {
     </div>
   );
 }
+
+const SENTIMENT_CTA = {
+  positive: { label: "ポジティブ", icon: "📈", colorClass: "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 border border-red-200 dark:border-red-800" },
+  negative: { label: "ネガティブ", icon: "📉", colorClass: "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 border border-green-200 dark:border-green-800" },
+  neutral:  { label: "中立",       icon: "➡️", colorClass: "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-600" },
+} as const;
+
+const NewsCta = ({
+  insight,
+  isExpanded,
+}: {
+  insight: InsightState | undefined;
+  isExpanded: boolean;
+}) => {
+  if (!insight || insight.status === "idle") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-blue-500 dark:text-blue-400 border border-dashed border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer">
+        🔍 クリックして取得
+      </span>
+    );
+  }
+  if (insight.status === "loading") {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 animate-pulse">
+        <span className="w-3 h-3 rounded-full border-2 border-gray-300 border-t-blue-500 animate-spin inline-block" />
+        取得中...
+      </span>
+    );
+  }
+  if (insight.status === "error") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs text-red-500 dark:text-red-400 border border-dashed border-red-300 dark:border-red-700">
+        ⚠ 再取得
+      </span>
+    );
+  }
+  const s = SENTIMENT_CTA[insight.data.sentiment];
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${s.colorClass}`}>
+      {s.icon} {s.label}
+      <span className="ml-0.5 text-[10px] opacity-60">{isExpanded ? "▲" : "▼"}</span>
+    </span>
+  );
+};
 
 const SuggestionBadge = ({ suggestion }: { suggestion?: string | null }) => {
   if (!suggestion) return <span className="text-gray-400 dark:text-gray-500 text-sm">-</span>;

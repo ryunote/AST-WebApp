@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
@@ -17,13 +19,16 @@ app = FastAPI(
 )
 
 # CORS設定
-origins = ["http://localhost:3000"]
+# ALLOWED_ORIGINS: カンマ区切りで複数 origin を指定可能
+# 例（本番）: ALLOWED_ORIGINS=https://app.example.com,https://staging.example.com
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000")
+origins = [o.strip() for o in _raw_origins.split(",")]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type"],
 )
 
 # ルーターの登録
