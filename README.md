@@ -13,7 +13,7 @@ Phase 1では単一のコンテナで動作していたバックエンドを分�
 ---
 
 ## 📺 動作デモ
-https://github.com/user-attachments/assets/37e2d080-890b-4a8c-bc28-46ec11759a0d
+https://github.com/user-attachments/assets/aebab511-8a72-40bc-a618-5b65526c6fa3
 
 ---
 
