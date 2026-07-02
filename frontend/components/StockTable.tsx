@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { StockInTrade, InsightResponse } from "@/types";
-import { getMarketInsight } from "@/lib/api";
+import { getCachedInsight, getMarketInsight } from "@/lib/api";
 import { computeConvergence } from "@/lib/convergence";
 import NewsInsightPanel from "./NewsInsightPanel";
 
@@ -10,6 +10,7 @@ type Props = {
   stocks: StockInTrade[];
   loading: boolean;
   onUpdateShares: (symbol: string, newShares: number) => Promise<void>;
+  onChangeStatus: (symbol: string, newStatus: "保有済" | "未保有") => Promise<void>;
 };
 
 type InsightState =
@@ -43,9 +44,30 @@ function formatAnalyzedAt(raw: string | null | undefined): string {
  * 登録済み銘柄の一覧を表示するテーブルコンポーネント。
  * 行クリックでInsight Serviceからニュース感情分析を遅延取得し、展開表示する。
  */
-export default function StockTable({ stocks, loading, onUpdateShares }: Props) {
+export default function StockTable({ stocks, loading, onUpdateShares, onChangeStatus }: Props) {
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
   const [insightMap, setInsightMap] = useState<Record<string, InsightState>>({});
+
+  // stocks 更新時に Redis キャッシュ済みデータをプリフェッチ
+  // LLM 分析は実行しない (/cached エンドポイント = 404 なら idle のまま)
+  const prefetchedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    stocks.forEach(({ stock_symbol: symbol }) => {
+      if (prefetchedRef.current.has(symbol)) return;
+      prefetchedRef.current.add(symbol);
+      getCachedInsight(symbol)
+        .then((data) => {
+          setInsightMap((prev) => {
+            // ユーザーがすでにクリックしてデータを取得済みなら上書きしない
+            if (prev[symbol]) return prev;
+            return { ...prev, [symbol]: { status: "loaded", data } };
+          });
+        })
+        .catch(() => {
+          // 404 (キャッシュなし) → idle のまま → 「取得する」表示
+        });
+    });
+  }, [stocks]);
 
   const handleRowClick = async (symbol: string) => {
     if (expandedSymbol === symbol) {
@@ -56,7 +78,7 @@ export default function StockTable({ stocks, loading, onUpdateShares }: Props) {
     setExpandedSymbol(symbol);
 
     const current = insightMap[symbol];
-    if (current?.status === "loaded" || current?.status === "loading") return;
+    if (current?.status === "loading") return;
 
     setInsightMap((prev) => ({ ...prev, [symbol]: { status: "loading" } }));
 
@@ -165,8 +187,25 @@ export default function StockTable({ stocks, loading, onUpdateShares }: Props) {
                       </td>
 
                       {/* 保有状況 */}
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                        {stock.order_datetime === "未取得" ? "未保有" : stock.order_datetime}
+                      <td
+                        className="px-4 py-4 whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <select
+                          value={(stock.shares_held ?? 0) > 0 ? "保有済" : "未保有"}
+                          onChange={(e) =>
+                            onChangeStatus(
+                              stock.stock_symbol,
+                              e.target.value as "保有済" | "未保有"
+                            )
+                          }
+                          className="text-xs border border-gray-300 dark:border-gray-600 rounded px-2 py-1
+                            bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200
+                            focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                        >
+                          <option value="未保有">未保有</option>
+                          <option value="保有済">保有済</option>
+                        </select>
                       </td>
 
                       {/* 保有株数 (+100/-100) */}

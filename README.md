@@ -74,7 +74,8 @@ ast-web/
 │   ├── db/                     # DB接続・モデル定義
 │   ├── routers/
 │   │   ├── stocks.py           # 銘柄CRUD
-│   │   └── analysis.py         # 分析オーケストレーター (ML Service / Insight Service を並列呼び出し)
+│   │   ├── analysis.py         # 分析オーケストレーター (ML Service 呼び出し・売買判断)
+│   │   └── portfolio.py        # GET /api/portfolio: 保有銘柄の評価額・含み損益・配分集計
 │   └── tests/
 │       ├── conftest.py         # SQLite in-memory DB fixture・TestClient DI
 │       └── unit/
@@ -100,14 +101,14 @@ ast-web/
 ├── backend-insight/            # [Insight Service] LLMによる定性インサイト生成
 │   ├── main.py                 # エントリーポイント (Port 8002) + CORSMiddleware
 │   ├── routers/
-│   │   └── market.py           # /insight/market/{symbol} ニュース感情分析
+│   │   └── market.py           # /insight/market/{symbol} ニュース感情分析 / /insight/market/{symbol}/cached キャッシュ確認専用
 │   ├── schemas/
 │   │   └── market.py           # InsightResponse / Article Pydantic モデル
 │   ├── services/
 │   │   ├── symbol_resolver.py  # 証券コード → 企業名変換 (yfinance)
 │   │   ├── news_fetcher.py     # ニュース取得・前処理 (NewsAPI / httpx)
 │   │   ├── llm_client.py       # Google Gemini 2.5 Flash ラッパー (google-genai SDK)
-│   │   └── cache.py            # Redis キャッシュ TTL=3h (Graceful Degradation)
+│   │   └── cache.py            # Redis キャッシュ TTL=3h・モジュールレベル接続プール (Graceful Degradation)
 │   └── tests/
 │       ├── conftest.py
 │       └── unit/
@@ -120,14 +121,14 @@ ast-web/
 └── frontend/                   # [Frontend] Next.js アプリケーション
     ├── app/                    # App Router Pages
     ├── components/
-    │   ├── StockTable.tsx           # 銘柄一覧 (行クリックでInsight遅延取得・展開)
+    │   ├── StockTable.tsx           # 銘柄一覧 (行クリックでInsight取得・展開、保有株数±100・保有状況ドロップダウン、起動時キャッシュプリフェッチ)
     │   ├── NewsInsightPanel.tsx     # ニュース分析展開パネル (感情/サマリー/イベント/リスク)
     │   ├── SignalConvergenceBadge.tsx # XGBoost×Geminiシグナル収束バッジ
     │   ├── AnalysisPanel.tsx        # ML一括分析コントロール
     │   └── ...                      # その他共通コンポーネント
     ├── hooks/                  # useStocks カスタムフック
     ├── lib/
-    │   ├── api.ts              # APIクライアント (apiClient / getMarketInsight)
+    │   ├── api.ts              # APIクライアント (apiClient / getMarketInsight / getCachedInsight / getPortfolio)
     │   └── convergence.ts      # computeConvergence() ユーティリティ
     ├── types/                  # TypeScript型定義 (InsightResponse / ConvergenceState)
     └── __tests__/
@@ -214,14 +215,22 @@ cd frontend && npm test
     *   **Insight Service**: NewsAPI によるニュース取得 → Google Gemini 2.5 Flash による感情分析 → JSON構造化出力。
     *   **連携ログ**: フロントエンド上で「CoreからMLへリクエスト送信中...」といった詳細な処理状況を可視化。
 2.  **デュアルシグナルUI**
-    *   銘柄行をクリックすると Insight Service からニュース感情を遅延取得・展開表示。
+    *   銘柄行をクリックすると Insight Service からニュース感情を取得・展開表示。再展開のたびに再フェッチし Redis キャッシュ状態（`(キャッシュ)` ラベル）を正確に反映。
     *   XGBoost予測（up/down）と Gemini感情（positive/negative/neutral）を並列表示し、**シグナル収束状態**（bullish / bearish / divergent / no_data）をバッジで示す。
+    *   ページ読み込み時に全銘柄の `/cached` エンドポイントを並列プリフェッチ。Redis 済みの銘柄はクリック前からニュースカラムに感情バッジを即時表示。
     *   売買の最終判断はユーザーが行う。システムは両シグナルを提示するのみ。
-3.  **データ整合性の向上**
+3.  **ポートフォリオ管理 (Phase 3.1 Week 1)**
+    *   `StockInTrade` に `shares_held`（保有株数）カラム追加。`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` による Alembic 不要のスタートアップマイグレーション。
+    *   `GET /api/portfolio`: `shares_held > 0` の銘柄を集計し、総評価額・含み損益・銘柄別配分（%）を返す。
+    *   UIに保有状況ドロップダウン（未保有/保有済）と保有株数±100株コントロールを追加。未保有→保有済で `order_id` を `MANUAL` に切り替え、AI が SELL/HOLD ロジックへ移行。
+4.  **データ整合性の向上**
     *   **浮動小数点数対策**: バックエンド/フロントエンド双方で適切な丸め処理を行い、正確な価格情報を表示・保存。
-4.  **パフォーマンス最適化**
+    *   **JST時刻**: Docker コンテナの UTC タイムゾーンを補正。`datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=9)` でナイーブ JST を生成し、DB の naive datetime と混在エラーを回避。
+5.  **パフォーマンス最適化**
     *   **Redisキャッシュ**: ML 予測結果・Insight 分析結果をキャッシュ（Insight: TTL 3時間）。外部 API コストを削減し、2回目以降は即時返却。Redis 障害時も Graceful Degradation で継続動作。
-5.  **本番対応 CORS 設定**
+    *   **接続プール**: Insight Service の Redis クライアントをリクエスト単位の新規接続からモジュールレベルの `ConnectionPool` に変更。起動時に1度だけ疎通確認し、以降はプールから再利用。
+    *   **キャッシュ確認専用エンドポイント** `GET /insight/market/{symbol}/cached`: LLM 分析を実行せず Redis の有無だけを返す。プリフェッチ用に特化したエンドポイント。
+6.  **本番対応 CORS 設定**
     *   `ALLOWED_ORIGINS` 環境変数でオリジンを注入。`docker-compose.yml` で開発用デフォルト `http://localhost:3000` を設定。本番では環境変数上書きのみで対応可能。
 
 ---
@@ -409,15 +418,15 @@ pyenv exec mutmut results
     *   [ ] Kubernetes (EKS/GKE) へのデプロイ
     *   [ ] ArgoCDによるGitOpsフローの構築
     *   [ ] サービスメッシュ (Istio) による可観測性向上
-*   **Phase 3.1: ポートフォリオ視点への進化 (Planned)**
+*   **Phase 3.1: ポートフォリオ視点への進化 (In Progress)**
 
     既存資産（ML / Insight Service）を壊さず、その上に「資産形成」レイヤーを被せる方針。
     1か月・個人開発ペースを想定した週次分解。
 
-    **Week 1 — データモデル修正（土台）**
-    *   [ ] `StockInTrade` に `shares_held`（保有株数）カラム追加、マイグレーション
-    *   [ ] Core Service に `GET /api/portfolio` を新設：全銘柄の `shares_held × current_price` を合算し、総評価額・銘柄別配分（%）・含み損益を返す
-    *   ここが最も構造的に重要。このエンドポイントがない限り「資産形成」を名乗れない。
+    **Week 1 — データモデル修正（土台）✅ Completed**
+    *   [x] `StockInTrade` に `shares_held`（保有株数）カラム追加、スタートアップマイグレーション
+    *   [x] Core Service に `GET /api/portfolio` を新設：全銘柄の `shares_held × current_price` を合算し、総評価額・銘柄別配分（%）・含み損益を返す
+    *   [x] UI に保有状況ドロップダウン・保有株数±100コントロール追加、Insight Redis キャッシュ改善（接続プール・プリフェッチ・`/cached` エンドポイント）
 
     **Week 2 — ポートフォリオダッシュボード（可視化）**
     *   [ ] フロントに `/portfolio` ページ追加：総資産額・配分円グラフ・評価損益の時系列

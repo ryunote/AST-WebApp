@@ -58,6 +58,30 @@ export async function getPortfolio(): Promise<import("@/types").PortfolioRespons
 }
 
 /**
+ * Redisキャッシュ済みのニュース感情分析を取得する。
+ * キャッシュがない場合は 404 エラーをスローする（LLM分析は実行しない）。
+ *
+ * @param symbol - 証券コード (例: "7203.T", "AAPL")
+ * @returns InsightResponse (cached=true)
+ * @throws {Error} キャッシュ未存在(404)またはネットワークエラー
+ */
+export async function getCachedInsight(symbol: string): Promise<import("@/types").InsightResponse> {
+  const url = `${INSIGHT_API_BASE_URL}/insight/market/${symbol}/cached`;
+  try {
+    const response = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || `Insight API Error: ${response.statusText}`);
+    }
+    return data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+/**
  * Insight Serviceからニュース感情分析を取得する。
  *
  * @param symbol - 証券コード (例: "7203.T", "AAPL")

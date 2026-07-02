@@ -29,6 +29,29 @@ router = APIRouter(prefix="/insight", tags=["insight"])
 _SYMBOL_PATTERN = r"^[A-Z0-9.\^-]+$"
 
 
+@router.get("/market/{symbol}/cached", response_model=InsightResponse)
+def get_cached_market_insight(
+    symbol: str = Path(..., min_length=1, pattern=_SYMBOL_PATTERN),
+) -> InsightResponse:
+    """
+    Redisにキャッシュ済みのニュース感情分析を返す。
+    キャッシュがない場合は 404 を返す（LLM分析は実行しない）。
+
+    Args:
+        symbol: 証券コード (例: "7203.T", "AAPL")
+
+    Returns:
+        InsightResponse: キャッシュ済みの感情分析結果 (cached=True)
+
+    Raises:
+        HTTPException 404: Redisにキャッシュが存在しない場合
+    """
+    cached_data = cache.get_insight(symbol)
+    if cached_data is None:
+        raise HTTPException(status_code=404, detail=f"No cached insight for {symbol}")
+    return cached_data.model_copy(update={"cached": True})
+
+
 @router.get("/market/{symbol}", response_model=InsightResponse)
 def get_market_insight(
     symbol: str = Path(..., min_length=1, pattern=_SYMBOL_PATTERN),
