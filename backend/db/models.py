@@ -21,6 +21,7 @@ class StockInTrade(Base):
     order_datetime = Column(String, default="未取得")
     order_settlement_datetime = Column(String, default="未取得")
     average_acquisition_price = Column(Float, default=0.0)
+    shares_held = Column(Float, default=0.0)
     
     # カラム定義 AI分析結果の永続化用 ---
     # 分析を行った日時

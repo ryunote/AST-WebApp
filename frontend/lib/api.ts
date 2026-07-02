@@ -47,6 +47,17 @@ export async function apiClient<T>(endpoint: string, options: RequestInit = {}):
 }
 
 /**
+ * ポートフォリオの現在評価額を取得する。
+ * shares_held > 0 の銘柄が集計対象となる。
+ *
+ * @returns PortfolioResponse
+ * @throws {Error} API通信エラー
+ */
+export async function getPortfolio(): Promise<import("@/types").PortfolioResponse> {
+  return apiClient<import("@/types").PortfolioResponse>("/api/portfolio");
+}
+
+/**
  * Insight Serviceからニュース感情分析を取得する。
  *
  * @param symbol - 証券コード (例: "7203.T", "AAPL")

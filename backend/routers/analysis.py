@@ -14,7 +14,16 @@ Microservices Architectureへの移行に伴い、計算ロジックはML Servic
 
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# Docker コンテナはデフォルト UTC で動くため、明示的に JST オフセットを加算する。
+# sold_datetime はタイムゾーンなしで DB に保存されているため、
+# aware/naive 混在を避けるナイーブ JST を返すヘルパーを用意する。
+_JST_OFFSET = timedelta(hours=9)
+
+
+def _jst_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None) + _JST_OFFSET
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -52,7 +61,7 @@ def check_repurchase_prohibition(stock: StockInTrade) -> bool:
         sold_datetime = datetime.strptime(sold_time_str, "%Y/%m/%d %H:%M:%S")
         
         # 経過日数を計算
-        delta = datetime.now() - sold_datetime
+        delta = _jst_now() - sold_datetime
         return delta.days < REPURCHASE_PROHIBITING_DAYS
     except (IndexError, ValueError):
         # フォーマット異常等の場合は安全側に倒してFalse（禁止しない）とする
@@ -138,7 +147,7 @@ async def analyze_stock(stock_symbol: str, db: Session = Depends(get_db)) -> Sto
             reason = "AI上昇継続予測。保有継続を提案。"
 
     # 4. 結果をDBに保存 (Persistence)
-    now_str = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+    now_str = _jst_now().strftime("%Y/%m/%d %H:%M:%S")
     
     # モデルのフィールドを更新
     db_stock.current_price = current_price

@@ -15,7 +15,7 @@ import { LogEntry } from "@/types";
  * バックエンド通信が発生するコンポーネントへログ出力関数(addLog)を注入する。
  */
 export default function Home() {
-  const { stocks, loading, error, addStock, deleteStock, settleStock, refreshStocks } = useStocks();
+  const { stocks, loading, error, addStock, deleteStock, settleStock, updateSharesHeld, refreshStocks } = useStocks();
   
   // システムログの状態管理
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -85,7 +85,19 @@ export default function Home() {
 
         {/* 一覧テーブル */}
         <section aria-label="保有銘柄一覧">
-          <StockTable stocks={stocks} loading={loading} />
+          <StockTable
+            stocks={stocks}
+            loading={loading}
+            onUpdateShares={async (symbol, newShares) => {
+              addLog(`[System] Backend へ保有株数更新リクエストを送信中: ${symbol} → ${newShares}株`);
+              const result = await updateSharesHeld(symbol, newShares);
+              if (result.success) {
+                addLog(`[Success] Backend応答: ${symbol} 保有株数を ${newShares}株 に更新しました`);
+              } else {
+                addLog(`[Error] Backend応答: ${result.message}`);
+              }
+            }}
+          />
         </section>
         
         {/* システムログ表示エリア */}

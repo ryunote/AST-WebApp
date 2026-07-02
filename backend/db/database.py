@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -24,6 +24,20 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # モデル定義の基底クラス
 Base = declarative_base()
+
+
+def run_migrations():
+    """
+    起動時の軽量マイグレーション。
+    Alembicを使わずに既存テーブルへのカラム追加を安全に行う。
+    ADD COLUMN IF NOT EXISTS は PostgreSQL 9.6+ でサポート。
+    """
+    with engine.connect() as conn:
+        conn.execute(text(
+            "ALTER TABLE stocks_in_trade "
+            "ADD COLUMN IF NOT EXISTS shares_held FLOAT DEFAULT 0.0"
+        ))
+        conn.commit()
 
 
 def get_db():

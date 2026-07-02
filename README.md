@@ -64,7 +64,9 @@ graph TD
 ```text
 ast-web/
 ├── docker-compose.yml          # 全サービスのオーケストレーション定義
-├── .github/workflows/test.yml  # CI: backend / ml / insight / frontend の4並行ジョブ
+├── .github/workflows/
+│   ├── test.yml                # CI: backend / ml / frontend の3並行ジョブ
+│   └── deploy.yml              # Staging deploy (test.yml呼び出し + スタブstep)
 │
 ├── backend/                    # [Core Service] 銘柄管理・DB操作・API Gateway
 │   ├── main.py                 # エントリーポイント (Port 8000)
@@ -76,8 +78,9 @@ ast-web/
 │   └── tests/
 │       ├── conftest.py         # SQLite in-memory DB fixture・TestClient DI
 │       └── unit/
-│           ├── test_stocks_router.py   # CRUD・バリデーション (18テスト)
-│           └── test_analysis_logic.py  # 売買判断ロジック全パターン (14テスト)
+│           ├── test_stocks_router.py   # CRUD・バリデーション (26テスト)
+│           ├── test_analysis_logic.py  # 売買判断ロジック全パターン (16テスト)
+│           └── test_main.py            # アプリ起動・ヘルスチェック (2テスト)
 │
 ├── backend-ml/                 # [ML Service] 計算・データ取得
 │   ├── main.py                 # 分析APIエントリーポイント (Port 8001)
@@ -91,7 +94,8 @@ ast-web/
 │           ├── test_predict_endpoint.py # /predict エンドポイント全フロー (14テスト)
 │           ├── test_ml_engine.py        # XGBoost予測ロジック (8テスト)
 │           ├── test_market_data.py      # yfinanceラッパー (8テスト)
-│           └── test_cache.py            # Redis操作・障害時Degradation (15テスト)
+│           ├── test_cache.py            # Redis操作・障害時Degradation (15テスト)
+│           └── test_main.py             # アプリ起動・ヘルスチェック (1テスト)
 │
 ├── backend-insight/            # [Insight Service] LLMによる定性インサイト生成
 │   ├── main.py                 # エントリーポイント (Port 8002) + CORSMiddleware
@@ -108,10 +112,10 @@ ast-web/
 │       ├── conftest.py
 │       └── unit/
 │           ├── test_symbol_resolver.py  # yfinanceモック (4テスト)
-│           ├── test_news_fetcher.py     # NewsAPIモック (13テスト)
-│           ├── test_llm_client.py       # Geminiモック (12テスト)
-│           ├── test_cache.py            # Redisモック (11テスト)
-│           └── test_market_endpoint.py  # エンドポイント統合 (8テスト)
+│           ├── test_news_fetcher.py     # NewsAPIモック (10テスト)
+│           ├── test_llm_client.py       # Geminiモック (9テスト)
+│           ├── test_cache.py            # Redisモック (14テスト)
+│           └── test_market_endpoint.py  # エンドポイント統合 (11テスト)
 │
 └── frontend/                   # [Frontend] Next.js アプリケーション
     ├── app/                    # App Router Pages
@@ -129,17 +133,17 @@ ast-web/
     └── __tests__/
         ├── page.test.tsx
         ├── components/
-        │   ├── StockTable.test.tsx          # 銘柄行・Insight展開 (30テスト)
+        │   ├── StockTable.test.tsx          # 銘柄行・Insight展開 (31テスト)
         │   ├── NewsInsightPanel.test.tsx    # 感情/メタ/イベント/リスク (12テスト)
         │   ├── SignalConvergenceBadge.test.tsx # 4状態 (4テスト)
         │   ├── AnalysisPanel.test.tsx
-        │   ├── StockInputForm.test.tsx      # バリデーション・操作 (9テスト)
+        │   ├── StockInputForm.test.tsx      # バリデーション・操作 (10テスト)
         │   ├── StatusLog.test.tsx
         │   └── ThemeToggle.test.tsx
         ├── hooks/
-        │   └── useStocks.test.ts            # フックの状態管理 (10テスト)
+        │   └── useStocks.test.ts            # フックの状態管理 (11テスト)
         └── lib/
-            ├── api.test.ts                  # apiClient + getMarketInsight (12テスト)
+            ├── api.test.ts                  # apiClient + getMarketInsight (14テスト)
             └── convergence.test.ts          # computeConvergence 全分岐 (10テスト)
 ```
 
@@ -390,13 +394,13 @@ pyenv exec mutmut results
     *   [x] PythonデスクトップアプリのWeb API化 (FastAPI)
     *   [x] Next.jsによるモダンUI構築
     *   [x] Docker Composeによるフルスタック開発環境
-*   **Phase 2: Microservices & Optimization (Current)**
+*   **Phase 2: Microservices & Optimization (Completed)**
     *   [x] バックエンドの分割 (Core Service / ML Service)
     *   [x] サービス間通信の実装 (HTTPX)
     *   [x] Redisによるキャッシュ層の導入 (Rate Limit回避・高速化)
     *   [x] GitHub Actions CI の構築 (3並行ジョブ)
     *   [x] Insight Service 構築: ニュース感情分析 (`/insight/market`) 実装完了（Google Gemini 2.5 Flash + NewsAPI）
-*   **Quality: テストカバレッジ向上プロジェクト (In Progress)**
+*   **Quality: テストカバレッジ向上プロジェクト (Completed)**
     *   [x] Phase A: ML Service 全テスト (100% branch coverage 達成)
     *   [x] Phase B: Frontend コンポーネントテスト (branch coverage 85% 達成)
     *   [x] Phase C: Core Service branch coverage 補完 (99% 達成)
@@ -405,6 +409,29 @@ pyenv exec mutmut results
     *   [ ] Kubernetes (EKS/GKE) へのデプロイ
     *   [ ] ArgoCDによるGitOpsフローの構築
     *   [ ] サービスメッシュ (Istio) による可観測性向上
+*   **Phase 3.1: ポートフォリオ視点への進化 (Planned)**
+
+    既存資産（ML / Insight Service）を壊さず、その上に「資産形成」レイヤーを被せる方針。
+    1か月・個人開発ペースを想定した週次分解。
+
+    **Week 1 — データモデル修正（土台）**
+    *   [ ] `StockInTrade` に `shares_held`（保有株数）カラム追加、マイグレーション
+    *   [ ] Core Service に `GET /api/portfolio` を新設：全銘柄の `shares_held × current_price` を合算し、総評価額・銘柄別配分（%）・含み損益を返す
+    *   ここが最も構造的に重要。このエンドポイントがない限り「資産形成」を名乗れない。
+
+    **Week 2 — ポートフォリオダッシュボード（可視化）**
+    *   [ ] フロントに `/portfolio` ページ追加：総資産額・配分円グラフ・評価損益の時系列
+    *   既存の `NewsInsightPanel` / `computeConvergence` はそのまま個別銘柄詳細として活用（作り直し不要）
+
+    **Week 3 — ゴールベース積立シミュレーター**
+    *   [ ] Core Service に追加（あるいは軽量新規サービス）：目標金額・期間・想定利回りを入力 → 必要月次積立額を複利計算で逆算する API
+    *   [ ] フロントに簡易フォーム＋結果表示（グラフ化は任意）
+    *   ここで初めて「短期シグナル」と「長期ゴール」が同一画面に並び、思想の矛盾を製品として解消できる。
+
+    **Week 4 — NISA枠トラッキング + Quality負債の返済**
+    *   [ ] 年間つみたて投資枠・成長投資枠の消化額を手動記録し、残枠を表示（外部API連携不要）
+    *   [ ] Insight Service に CI ジョブを追加（Week 1〜3 の新規コードのテストも含めて一括整備）
+    *   [ ] README を Phase 2/3 の実態に合わせて更新（技術的負債の解消）
 
 ---
 

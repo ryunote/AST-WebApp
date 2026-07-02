@@ -9,6 +9,7 @@ import NewsInsightPanel from "./NewsInsightPanel";
 type Props = {
   stocks: StockInTrade[];
   loading: boolean;
+  onUpdateShares: (symbol: string, newShares: number) => Promise<void>;
 };
 
 type InsightState =
@@ -17,22 +18,32 @@ type InsightState =
   | { status: "loaded"; data: InsightResponse }
   | { status: "error"; message: string };
 
-const TABLE_HEADERS = [
-  "証券番号",
-  "企業名",
-  "AI提案",
-  "AI予測",
-  "現在株価",
-  "最終分析",
-  "保有状況",
-  "ニュース感情",
+const TABLE_HEADERS: { label: string; className?: string }[] = [
+  { label: "証券番号" },
+  { label: "企業名",    className: "px-3 w-[165px]" },
+  { label: "AI提案" },
+  { label: "AI予測" },
+  { label: "現在株価" },
+  { label: "最終分析",  className: "px-3 w-[80px]" },
+  { label: "保有状況" },
+  { label: "保有株数" },
+  { label: "ニュース" },
 ];
+
+const SHARES_UNIT = 100;
+
+/** "YYYY/MM/DD HH:MM:SS" → "MM/DD HH:MM" */
+function formatAnalyzedAt(raw: string | null | undefined): string {
+  if (!raw) return "未分析";
+  const m = raw.match(/^\d{4}\/(\d{2})\/(\d{2}) (\d{2}):(\d{2})/);
+  return m ? `${m[1]}/${m[2]} ${m[3]}:${m[4]}` : raw;
+}
 
 /**
  * 登録済み銘柄の一覧を表示するテーブルコンポーネント。
  * 行クリックでInsight Serviceからニュース感情分析を遅延取得し、展開表示する。
  */
-export default function StockTable({ stocks, loading }: Props) {
+export default function StockTable({ stocks, loading, onUpdateShares }: Props) {
   const [expandedSymbol, setExpandedSymbol] = useState<string | null>(null);
   const [insightMap, setInsightMap] = useState<Record<string, InsightState>>({});
 
@@ -84,9 +95,9 @@ export default function StockTable({ stocks, loading }: Props) {
               {TABLE_HEADERS.map((head, i) => (
                 <th
                   key={i}
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider"
+                  className={`py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider ${head.className ?? "px-6"}`}
                 >
-                  {head}
+                  {head.label}
                 </th>
               ))}
             </tr>
@@ -119,7 +130,7 @@ export default function StockTable({ stocks, loading }: Props) {
                       </td>
 
                       {/* 企業名 */}
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
+                      <td className="px-3 py-4 text-sm text-gray-600 dark:text-gray-300 max-w-[165px] truncate">
                         {stock.stock_name}
                       </td>
 
@@ -149,13 +160,35 @@ export default function StockTable({ stocks, loading }: Props) {
                       </td>
 
                       {/* 最終分析 */}
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                        {stock.last_analyzed_at || "未分析"}
+                      <td className="px-3 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
+                        {formatAnalyzedAt(stock.last_analyzed_at)}
                       </td>
 
                       {/* 保有状況 */}
                       <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
                         {stock.order_datetime === "未取得" ? "未保有" : stock.order_datetime}
+                      </td>
+
+                      {/* 保有株数 (+100/-100) */}
+                      <td
+                        className="px-4 py-4 whitespace-nowrap"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <SharesControl
+                          shares={stock.shares_held ?? 0}
+                          onDecrement={() =>
+                            onUpdateShares(
+                              stock.stock_symbol,
+                              Math.max(0, (stock.shares_held ?? 0) - SHARES_UNIT)
+                            )
+                          }
+                          onIncrement={() =>
+                            onUpdateShares(
+                              stock.stock_symbol,
+                              (stock.shares_held ?? 0) + SHARES_UNIT
+                            )
+                          }
+                        />
                       </td>
 
                       {/* ニュース感情 CTA */}
@@ -217,7 +250,7 @@ const NewsCta = ({
   if (!insight || insight.status === "idle") {
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-blue-500 dark:text-blue-400 border border-dashed border-blue-300 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors cursor-pointer">
-        🔍 クリックして取得
+        🔍 取得する
       </span>
     );
   }
@@ -244,6 +277,42 @@ const NewsCta = ({
     </span>
   );
 };
+
+const SharesControl = ({
+  shares,
+  onDecrement,
+  onIncrement,
+}: {
+  shares: number;
+  onDecrement: () => void;
+  onIncrement: () => void;
+}) => (
+  <div className="flex items-center gap-1">
+    <button
+      onClick={onDecrement}
+      disabled={shares <= 0}
+      className="w-7 h-7 flex items-center justify-center rounded text-sm font-bold
+        bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600
+        text-gray-700 dark:text-gray-200 disabled:opacity-30 disabled:cursor-not-allowed
+        transition-colors"
+      aria-label="株数を100株減らす"
+    >
+      −
+    </button>
+    <span className="w-16 text-center text-sm font-mono text-gray-800 dark:text-gray-200">
+      {shares.toLocaleString()}株
+    </span>
+    <button
+      onClick={onIncrement}
+      className="w-7 h-7 flex items-center justify-center rounded text-sm font-bold
+        bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600
+        text-gray-700 dark:text-gray-200 transition-colors"
+      aria-label="株数を100株増やす"
+    >
+      ＋
+    </button>
+  </div>
+);
 
 const SuggestionBadge = ({ suggestion }: { suggestion?: string | null }) => {
   if (!suggestion) return <span className="text-gray-400 dark:text-gray-500 text-sm">-</span>;

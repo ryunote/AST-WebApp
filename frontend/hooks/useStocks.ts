@@ -74,10 +74,23 @@ export const useStocks = () => {
           order_settlement_datetime: now,
           order_datetime: `売却済: ${now}`,
           average_acquisition_price: 0.0,
+          shares_held: 0.0,
         }),
       })
     );
   };
+
+  /**
+   * 保有株数を更新する。+/- ボタンから呼び出される。
+   * newShares は 0 以上の値のみ受け付ける。
+   */
+  const updateSharesHeld = (ticker: string, newShares: number) =>
+    executeAction(() =>
+      apiClient<{ message: string }>(`/api/stocks/${ticker}`, {
+        method: "PUT",
+        body: JSON.stringify({ shares_held: Math.max(0, newShares) }),
+      })
+    );
 
   // 初回マウント時にデータを取得
   // React 18のStrict Mode開発環境では2回呼ばれることがあるが、仕様上問題ない
@@ -92,6 +105,7 @@ export const useStocks = () => {
     addStock,
     deleteStock,
     settleStock,
+    updateSharesHeld,
     refreshStocks: fetchStocks,
   };
 };
