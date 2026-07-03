@@ -4,13 +4,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 
-from db.database import engine
+from db.database import engine, run_migrations
 from db import models
 # 作成したルーターをインポート
-from routers import stocks, analysis
+from routers import stocks, analysis, portfolio, trades
 
-# アプリケーション起動時にDBテーブルを作成（Phase 1用簡易マイグレーション）
+# アプリケーション起動時にDBテーブルを作成
 models.Base.metadata.create_all(bind=engine)
+# 既存テーブルへのカラム追加マイグレーション（create_all では対応できないため）
+run_migrations()
 
 app = FastAPI(
     title="Stock Trading System API",
@@ -27,7 +29,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
@@ -35,6 +37,8 @@ app.add_middleware(
 # 機能ごとにエンドポイントを分割して管理
 app.include_router(stocks.router)
 app.include_router(analysis.router)
+app.include_router(portfolio.router)
+app.include_router(trades.router)
 
 @app.get("/")
 def read_root():

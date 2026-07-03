@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import Optional, List
 
 # ------------------------------------------------------------------
 # 銘柄管理 (CRUD) 用スキーマ
@@ -18,7 +18,8 @@ class StockUpdate(BaseModel):
     order_datetime: Optional[str] = None
     order_settlement_datetime: Optional[str] = None
     average_acquisition_price: Optional[float] = None
-    
+    shares_held: Optional[float] = None
+
     # 分析結果の永続化用フィールド
     last_analyzed_at: Optional[str] = None
     current_price: Optional[float] = None
@@ -26,6 +27,33 @@ class StockUpdate(BaseModel):
     ai_suggestion: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
+
+
+# ------------------------------------------------------------------
+# ポートフォリオ集計用スキーマ
+# ------------------------------------------------------------------
+
+class PortfolioHolding(BaseModel):
+    """ポートフォリオ内1銘柄の評価情報"""
+    stock_symbol: str
+    stock_name: str
+    shares_held: float
+    current_price: float
+    acquisition_price: float
+    market_value: float      # shares_held × current_price
+    unrealized_pnl: float    # (current_price - acquisition_price) × shares_held
+    weight: float            # market_value / total_market_value (%)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PortfolioResponse(BaseModel):
+    """ポートフォリオ全体の集計レスポンス"""
+    holdings: List[PortfolioHolding]
+    total_market_value: float
+    total_unrealized_pnl: float
+    as_of: str               # 集計基準日時
+
 
 # ------------------------------------------------------------------
 # 分析・シミュレーション用スキーマ
@@ -41,5 +69,31 @@ class StockAnalysisResult(BaseModel):
     current_price: float    # 現在株価
     reason: str             # 提案の理由（画面表示用）
     last_analyzed_at: str   # 分析実行日時刻
-    
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ------------------------------------------------------------------
+# 取引履歴用スキーマ
+# ------------------------------------------------------------------
+
+class TradeCreate(BaseModel):
+    """取引記録の作成リクエスト。"""
+    trade_type: str              # "BUY" or "SELL"
+    quantity: float
+    price: float
+    trade_datetime: Optional[str] = None  # None 時はバックエンドが現在時刻を使用
+    note: Optional[str] = None
+
+
+class TradeResponse(BaseModel):
+    """取引記録のレスポンス。"""
+    id: int
+    stock_symbol: str
+    trade_type: str
+    quantity: float
+    price: float
+    trade_datetime: str
+    note: Optional[str] = None
+
     model_config = ConfigDict(from_attributes=True)

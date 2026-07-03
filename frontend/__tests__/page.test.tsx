@@ -11,10 +11,27 @@ jest.mock('@/hooks/useStocks', () => ({
     error: null,
     addStock: jest.fn(),
     deleteStock: jest.fn(),
+    markAsBought: jest.fn(),
     settleStock: jest.fn(),
+    recordSell: jest.fn(),
     refreshStocks: jest.fn(),
   }),
 }))
+
+jest.mock('@/hooks/usePortfolio', () => ({
+  usePortfolio: () => ({
+    portfolio: null,
+    loading: false,
+    error: null,
+    refresh: jest.fn(),
+  }),
+}))
+
+jest.mock('@/components/PortfolioDashboard', () => {
+  return function MockPortfolioDashboard() {
+    return <div data-testid="portfolio-dashboard">PortfolioDashboard</div>
+  }
+})
 
 jest.mock('@/components/StockInputForm', () => {
   return function MockStockInputForm() {

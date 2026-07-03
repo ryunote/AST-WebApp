@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float
+from sqlalchemy import Column, Integer, String, Float
 from db.database import Base
 
 class StockInTrade(Base):
@@ -21,6 +21,7 @@ class StockInTrade(Base):
     order_datetime = Column(String, default="未取得")
     order_settlement_datetime = Column(String, default="未取得")
     average_acquisition_price = Column(Float, default=0.0)
+    shares_held = Column(Float, default=0.0)
     
     # カラム定義 AI分析結果の永続化用 ---
     # 分析を行った日時
@@ -34,3 +35,29 @@ class StockInTrade(Base):
     
     # 売買提案 ("BUY", "SELL", "STAY", "WAIT", "HOLD")
     ai_suggestion = Column(String, nullable=True)
+
+
+class TradeHistory(Base):
+    """売買取引履歴テーブル。
+
+    average_acquisition_price の根拠となる売買ログを保持する。
+    BUY 記録時に加重平均コスト法で StockInTrade.average_acquisition_price を再計算・同期する。
+
+    Attributes:
+        id (int): 自動採番の主キー。
+        stock_symbol (str): 証券コード。
+        trade_type (str): 取引種別。"BUY" または "SELL"。
+        quantity (float): 株数。
+        price (float): 1株あたりの単価。
+        trade_datetime (str): 取引日時。
+        note (str): 備考（任意）。
+    """
+    __tablename__ = "trade_history"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    stock_symbol = Column(String, nullable=False, index=True)
+    trade_type = Column(String, nullable=False)  # "BUY" or "SELL"
+    quantity = Column(Float, nullable=False)
+    price = Column(Float, nullable=False)
+    trade_datetime = Column(String, nullable=False)
+    note = Column(String, nullable=True)

@@ -124,6 +124,14 @@ class TestAddStock:
         assert body["data"]["stock_symbol"] == "AAPL"
         assert body["data"]["stock_name"] == "Apple Inc."
 
+    def test_success_stores_current_price(self, client):
+        """正常登録時に yfinance から取得した現在株価が保存されること"""
+        with patch("db.crud.yf.Ticker", return_value=_make_yf_mock("Apple Inc.", price=1500.0)):
+            response = client.post("/api/stocks", json={"stock_symbol": "AAPL"})
+
+        assert response.status_code == 200
+        assert response.json()["data"]["current_price"] == 1500.0
+
     def test_success_visible_in_list(self, client):
         """登録後にGET /api/stocks で確認できること"""
         with patch("db.crud.yf.Ticker", return_value=_make_yf_mock()):

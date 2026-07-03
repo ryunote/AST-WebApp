@@ -27,6 +27,8 @@ export type StockInTrade = {
   ai_prediction?: string | null;
   /** 売買提案 ("BUY" | "SELL" | "STAY" | "WAIT" | "HOLD") */
   ai_suggestion?: string | null;
+  /** 保有株数 (0 = 未保有) */
+  shares_held?: number | null;
 };
 
 /**
@@ -56,6 +58,46 @@ export type InsightResponse = {
  * ユーザーの注意を向けるべき銘柄を判定するために使用する。
  */
 export type ConvergenceState = "bullish" | "bearish" | "divergent" | "no_data";
+
+/**
+ * ポートフォリオ内1銘柄の評価情報。
+ * GET /api/portfolio のレスポンスに含まれる。
+ */
+export type PortfolioHolding = {
+  stock_symbol: string;
+  stock_name: string;
+  shares_held: number;
+  current_price: number;
+  acquisition_price: number;
+  market_value: number;
+  unrealized_pnl: number;
+  weight: number;
+};
+
+/**
+ * ポートフォリオ全体の集計レスポンス。
+ */
+export type PortfolioResponse = {
+  holdings: PortfolioHolding[];
+  total_market_value: number;
+  total_unrealized_pnl: number;
+  as_of: string;
+};
+
+/**
+ * 売買取引履歴の1レコード。
+ * GET /api/stocks/{symbol}/trades のレスポンス要素。
+ */
+export type TradeEntry = {
+  id: number;
+  stock_symbol: string;
+  /** "BUY" または "SELL" */
+  trade_type: "BUY" | "SELL";
+  quantity: number;
+  price: number;
+  trade_datetime: string;
+  note: string | null;
+};
 
 /**
  * システムログのデータ構造

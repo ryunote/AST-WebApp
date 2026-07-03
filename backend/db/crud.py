@@ -69,8 +69,11 @@ def create_stock(db: Session, stock_symbol: str) -> Dict[str, Any]:
                 "message": f"銘柄 {stock_symbol} の詳細情報が見つかりません。コードや市場を確認してください。"
              }
 
-        # 名称の決定
         stock_name = info.get('shortName') or info.get('longName') or "名称不明"
+        # yfinance の実在チェック時に価格が取れるため、ML Service を呼ばずに保存しておく。
+        # 追加直後から現在株価を表示できるようにするための先行保存。
+        raw_price = info.get('regularMarketPrice') or info.get('currentPrice') or 0.0
+        current_price = round(float(raw_price), 2)
 
     except Exception as e:
         # 通信エラーやyfinance内部エラーのハンドリング
@@ -82,8 +85,9 @@ def create_stock(db: Session, stock_symbol: str) -> Dict[str, Any]:
 
     # 3. DB保存
     new_stock = StockInTrade(
-        stock_symbol=stock_symbol, 
-        stock_name=stock_name
+        stock_symbol=stock_symbol,
+        stock_name=stock_name,
+        current_price=current_price,
     )
     
     try:

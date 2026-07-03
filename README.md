@@ -13,7 +13,7 @@ Phase 1では単一のコンテナで動作していたバックエンドを分�
 ---
 
 ## 📺 動作デモ
-https://github.com/user-attachments/assets/aebab511-8a72-40bc-a618-5b65526c6fa3
+https://github.com/user-attachments/assets/e89134a6-ed85-4442-bfa7-99860aafec3a
 
 ---
 
@@ -64,7 +64,9 @@ graph TD
 ```text
 ast-web/
 ├── docker-compose.yml          # 全サービスのオーケストレーション定義
-├── .github/workflows/test.yml  # CI: backend / ml / insight / frontend の4並行ジョブ
+├── .github/workflows/
+│   ├── test.yml                # CI: backend / ml / frontend の3並行ジョブ
+│   └── deploy.yml              # Staging deploy (test.yml呼び出し + スタブstep)
 │
 ├── backend/                    # [Core Service] 銘柄管理・DB操作・API Gateway
 │   ├── main.py                 # エントリーポイント (Port 8000)
@@ -72,12 +74,15 @@ ast-web/
 │   ├── db/                     # DB接続・モデル定義
 │   ├── routers/
 │   │   ├── stocks.py           # 銘柄CRUD
-│   │   └── analysis.py         # 分析オーケストレーター (ML Service / Insight Service を並列呼び出し)
+│   │   ├── analysis.py         # 分析オーケストレーター (ML Service 呼び出し・売買判断)
+│   │   ├── portfolio.py        # GET /api/portfolio: 保有銘柄の評価額・含み損益・配分集計
+│   │   └── trades.py           # GET/POST /trades: 売買ログ・加重平均コスト法 / POST /settle: 全売却決済
 │   └── tests/
 │       ├── conftest.py         # SQLite in-memory DB fixture・TestClient DI
 │       └── unit/
-│           ├── test_stocks_router.py   # CRUD・バリデーション (18テスト)
-│           └── test_analysis_logic.py  # 売買判断ロジック全パターン (14テスト)
+│           ├── test_stocks_router.py   # CRUD・バリデーション (26テスト)
+│           ├── test_analysis_logic.py  # 売買判断ロジック全パターン (16テスト)
+│           └── test_main.py            # アプリ起動・ヘルスチェック (2テスト)
 │
 ├── backend-ml/                 # [ML Service] 計算・データ取得
 │   ├── main.py                 # 分析APIエントリーポイント (Port 8001)
@@ -91,55 +96,58 @@ ast-web/
 │           ├── test_predict_endpoint.py # /predict エンドポイント全フロー (14テスト)
 │           ├── test_ml_engine.py        # XGBoost予測ロジック (8テスト)
 │           ├── test_market_data.py      # yfinanceラッパー (8テスト)
-│           └── test_cache.py            # Redis操作・障害時Degradation (15テスト)
+│           ├── test_cache.py            # Redis操作・障害時Degradation (15テスト)
+│           └── test_main.py             # アプリ起動・ヘルスチェック (1テスト)
 │
 ├── backend-insight/            # [Insight Service] LLMによる定性インサイト生成
 │   ├── main.py                 # エントリーポイント (Port 8002) + CORSMiddleware
 │   ├── routers/
-│   │   └── market.py           # /insight/market/{symbol} ニュース感情分析
+│   │   └── market.py           # /insight/market/{symbol} ニュース感情分析 / /insight/market/{symbol}/cached キャッシュ確認専用
 │   ├── schemas/
 │   │   └── market.py           # InsightResponse / Article Pydantic モデル
 │   ├── services/
 │   │   ├── symbol_resolver.py  # 証券コード → 企業名変換 (yfinance)
 │   │   ├── news_fetcher.py     # ニュース取得・前処理 (NewsAPI / httpx)
 │   │   ├── llm_client.py       # Google Gemini 2.5 Flash ラッパー (google-genai SDK)
-│   │   └── cache.py            # Redis キャッシュ TTL=3h (Graceful Degradation)
+│   │   └── cache.py            # Redis キャッシュ TTL=3h・モジュールレベル接続プール (Graceful Degradation)
 │   └── tests/
 │       ├── conftest.py
 │       └── unit/
 │           ├── test_symbol_resolver.py  # yfinanceモック (4テスト)
-│           ├── test_news_fetcher.py     # NewsAPIモック (13テスト)
-│           ├── test_llm_client.py       # Geminiモック (12テスト)
-│           ├── test_cache.py            # Redisモック (11テスト)
-│           └── test_market_endpoint.py  # エンドポイント統合 (8テスト)
+│           ├── test_news_fetcher.py     # NewsAPIモック (10テスト)
+│           ├── test_llm_client.py       # Geminiモック (9テスト)
+│           ├── test_cache.py            # Redisモック (14テスト)
+│           └── test_market_endpoint.py  # エンドポイント統合 (11テスト)
 │
 └── frontend/                   # [Frontend] Next.js アプリケーション
     ├── app/                    # App Router Pages
     ├── components/
-    │   ├── StockTable.tsx           # 銘柄一覧 (行クリックでInsight遅延取得・展開)
+    │   ├── StockTable.tsx           # 銘柄一覧 (行クリックでInsight取得・展開、「＋」→買付フォーム/「−」→売却フォーム展開、保有状況ドロップダウン、起動時キャッシュプリフェッチ)
+    │   ├── PortfolioDashboard.tsx   # ポートフォリオサイドバー (総評価額・含み損益・SVGドーナツチャート・銘柄別配分バー)
     │   ├── NewsInsightPanel.tsx     # ニュース分析展開パネル (感情/サマリー/イベント/リスク)
     │   ├── SignalConvergenceBadge.tsx # XGBoost×Geminiシグナル収束バッジ
     │   ├── AnalysisPanel.tsx        # ML一括分析コントロール
     │   └── ...                      # その他共通コンポーネント
     ├── hooks/                  # useStocks カスタムフック
+    ├── hooks/                  # useStocks / usePortfolio カスタムフック
     ├── lib/
-    │   ├── api.ts              # APIクライアント (apiClient / getMarketInsight)
+    │   ├── api.ts              # APIクライアント (apiClient / getMarketInsight / getCachedInsight / getPortfolio / getTrades / addTrade)
     │   └── convergence.ts      # computeConvergence() ユーティリティ
     ├── types/                  # TypeScript型定義 (InsightResponse / ConvergenceState)
     └── __tests__/
         ├── page.test.tsx
         ├── components/
-        │   ├── StockTable.test.tsx          # 銘柄行・Insight展開 (30テスト)
+        │   ├── StockTable.test.tsx          # 銘柄行・Insight展開・BUY/SELL フォーム・取引履歴タブ (45テスト)
         │   ├── NewsInsightPanel.test.tsx    # 感情/メタ/イベント/リスク (12テスト)
         │   ├── SignalConvergenceBadge.test.tsx # 4状態 (4テスト)
         │   ├── AnalysisPanel.test.tsx
-        │   ├── StockInputForm.test.tsx      # バリデーション・操作 (9テスト)
+        │   ├── StockInputForm.test.tsx      # バリデーション・操作 (10テスト)
         │   ├── StatusLog.test.tsx
         │   └── ThemeToggle.test.tsx
         ├── hooks/
-        │   └── useStocks.test.ts            # フックの状態管理 (10テスト)
+        │   └── useStocks.test.ts            # フックの状態管理 (13テスト)
         └── lib/
-            ├── api.test.ts                  # apiClient + getMarketInsight (12テスト)
+            ├── api.test.ts                  # apiClient + getMarketInsight (14テスト)
             └── convergence.test.ts          # computeConvergence 全分岐 (10テスト)
 ```
 
@@ -210,14 +218,22 @@ cd frontend && npm test
     *   **Insight Service**: NewsAPI によるニュース取得 → Google Gemini 2.5 Flash による感情分析 → JSON構造化出力。
     *   **連携ログ**: フロントエンド上で「CoreからMLへリクエスト送信中...」といった詳細な処理状況を可視化。
 2.  **デュアルシグナルUI**
-    *   銘柄行をクリックすると Insight Service からニュース感情を遅延取得・展開表示。
+    *   銘柄行をクリックすると Insight Service からニュース感情を取得・展開表示。再展開のたびに再フェッチし Redis キャッシュ状態（`(キャッシュ)` ラベル）を正確に反映。
     *   XGBoost予測（up/down）と Gemini感情（positive/negative/neutral）を並列表示し、**シグナル収束状態**（bullish / bearish / divergent / no_data）をバッジで示す。
+    *   ページ読み込み時に全銘柄の `/cached` エンドポイントを並列プリフェッチ。Redis 済みの銘柄はクリック前からニュースカラムに感情バッジを即時表示。
     *   売買の最終判断はユーザーが行う。システムは両シグナルを提示するのみ。
-3.  **データ整合性の向上**
+3.  **ポートフォリオ管理 (Phase 3.1 Week 1)**
+    *   `StockInTrade` に `shares_held`（保有株数）カラム追加。`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` による Alembic 不要のスタートアップマイグレーション。
+    *   `GET /api/portfolio`: `shares_held > 0` の銘柄を集計し、総評価額・含み損益・銘柄別配分（%）を返す。
+    *   UIに保有状況ドロップダウン（未保有/保有済）と保有株数±100株コントロールを追加。未保有→保有済で `order_id` を `MANUAL` に切り替え、AI が SELL/HOLD ロジックへ移行。
+4.  **データ整合性の向上**
     *   **浮動小数点数対策**: バックエンド/フロントエンド双方で適切な丸め処理を行い、正確な価格情報を表示・保存。
-4.  **パフォーマンス最適化**
+    *   **JST時刻**: Docker コンテナの UTC タイムゾーンを補正。`datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=9)` でナイーブ JST を生成し、DB の naive datetime と混在エラーを回避。
+5.  **パフォーマンス最適化**
     *   **Redisキャッシュ**: ML 予測結果・Insight 分析結果をキャッシュ（Insight: TTL 3時間）。外部 API コストを削減し、2回目以降は即時返却。Redis 障害時も Graceful Degradation で継続動作。
-5.  **本番対応 CORS 設定**
+    *   **接続プール**: Insight Service の Redis クライアントをリクエスト単位の新規接続からモジュールレベルの `ConnectionPool` に変更。起動時に1度だけ疎通確認し、以降はプールから再利用。
+    *   **キャッシュ確認専用エンドポイント** `GET /insight/market/{symbol}/cached`: LLM 分析を実行せず Redis の有無だけを返す。プリフェッチ用に特化したエンドポイント。
+6.  **本番対応 CORS 設定**
     *   `ALLOWED_ORIGINS` 環境変数でオリジンを注入。`docker-compose.yml` で開発用デフォルト `http://localhost:3000` を設定。本番では環境変数上書きのみで対応可能。
 
 ---
@@ -242,14 +258,14 @@ Mutation Testing が Branch Coverage より厳しい理由: `if x > 0` を `if x
 
 ---
 
-### 現在のテスト構成（258テスト）
+### 現在のテスト構成（274テスト）
 
 | サービス | テストファイル | テスト数 | Line Coverage | Branch Coverage | Mutation Score |
 | :--- | :--- | :---: | :---: | :---: | :---: |
 | **Core Service** | `test_stocks_router.py` / `test_analysis_logic.py` / `test_main.py` | 44 | 99% | **99%** | — |
 | **ML Service** | `test_predict_endpoint.py` / `test_ml_engine.py` / `test_market_data.py` / `test_cache.py` / `test_main.py` | 46 | **100%** | **100%** | — |
 | **Insight Service** | `test_symbol_resolver.py` / `test_news_fetcher.py` / `test_llm_client.py` / `test_cache.py` / `test_market_endpoint.py` | 48 | — | — | — |
-| **Frontend** | `StockTable.test.tsx` / `NewsInsightPanel.test.tsx` / `SignalConvergenceBadge.test.tsx` / `convergence.test.ts` / `api.test.ts` / `useStocks.test.ts` / その他 | 120 | 87% | **95%** | **60%** |
+| **Frontend** | `StockTable.test.tsx` / `NewsInsightPanel.test.tsx` / `SignalConvergenceBadge.test.tsx` / `convergence.test.ts` / `api.test.ts` / `useStocks.test.ts` / その他 | 136 | 87% | **95%** | **60%** |
 
 ---
 
@@ -390,13 +406,13 @@ pyenv exec mutmut results
     *   [x] PythonデスクトップアプリのWeb API化 (FastAPI)
     *   [x] Next.jsによるモダンUI構築
     *   [x] Docker Composeによるフルスタック開発環境
-*   **Phase 2: Microservices & Optimization (Current)**
+*   **Phase 2: Microservices & Optimization (Completed)**
     *   [x] バックエンドの分割 (Core Service / ML Service)
     *   [x] サービス間通信の実装 (HTTPX)
     *   [x] Redisによるキャッシュ層の導入 (Rate Limit回避・高速化)
     *   [x] GitHub Actions CI の構築 (3並行ジョブ)
     *   [x] Insight Service 構築: ニュース感情分析 (`/insight/market`) 実装完了（Google Gemini 2.5 Flash + NewsAPI）
-*   **Quality: テストカバレッジ向上プロジェクト (In Progress)**
+*   **Quality: テストカバレッジ向上プロジェクト (Completed)**
     *   [x] Phase A: ML Service 全テスト (100% branch coverage 達成)
     *   [x] Phase B: Frontend コンポーネントテスト (branch coverage 85% 達成)
     *   [x] Phase C: Core Service branch coverage 補完 (99% 達成)
@@ -405,6 +421,45 @@ pyenv exec mutmut results
     *   [ ] Kubernetes (EKS/GKE) へのデプロイ
     *   [ ] ArgoCDによるGitOpsフローの構築
     *   [ ] サービスメッシュ (Istio) による可観測性向上
+*   **Phase 3.1: ポートフォリオ視点への進化 (In Progress)**
+
+    既存資産（ML / Insight Service）を壊さず、その上に「資産形成」レイヤーを被せる方針。
+    1か月・個人開発ペースを想定した週次分解。
+
+    **Week 1 — データモデル修正（土台）✅ Completed**
+    *   [x] `StockInTrade` に `shares_held`（保有株数）カラム追加、スタートアップマイグレーション
+    *   [x] Core Service に `GET /api/portfolio` を新設：全銘柄の `shares_held × current_price` を合算し、総評価額・銘柄別配分（%）・含み損益を返す
+    *   [x] UI に保有状況ドロップダウン・保有株数±100コントロール追加、Insight Redis キャッシュ改善（接続プール・プリフェッチ・`/cached` エンドポイント）
+
+    **Week 2a — ポートフォリオダッシュボード（可視化）✅ Completed**
+    *   [x] メインページ右カラムに `PortfolioDashboard` を追加（SPA 構成維持、別ルート不要と判断）：総評価額・含み損益・SVGドーナツチャート・銘柄別配分バー
+    *   [x] `usePortfolio` フック新設：`GET /api/portfolio` を管理し手動 refresh を提供
+    *   [x] 保有株数変更・保有状況変更・一括分析完了のタイミングでポートフォリオを自動更新
+    *   [x] コンテナ幅を `max-w-screen-2xl`（1536px）に拡張し左カラムの横幅を確保
+    *   既存の `NewsInsightPanel` / `computeConvergence` はそのまま個別銘柄詳細として活用（作り直し不要）
+
+    **Week 2b — 取得株価管理 + 売買ログ ✅ Completed**
+    *   [x] **DB追加**: `trade_history` テーブル新設（`Base.metadata.create_all` によるスタートアップ自動作成）
+        - `id` (PK autoincrement) / `stock_symbol` (indexed) / `trade_type` ("BUY"|"SELL") / `quantity` / `price` / `trade_datetime` / `note`
+    *   [x] **Backend**: `TradeHistory` SQLAlchemy モデル・`TradeCreate`/`TradeResponse` Pydantic スキーマ追加
+    *   [x] **Backend**: `GET /api/stocks/{symbol}/trades` — 取引履歴を新しい順に取得
+    *   [x] **Backend**: `POST /api/stocks/{symbol}/trades` — BUY/SELL 記録追加 → 加重平均コスト法で `average_acquisition_price` を再計算・`StockInTrade` に同期
+    *   [x] **Backend**: `POST /api/stocks/{symbol}/settle` — DB から現在の `shares_held` / `current_price` を参照して SELL ログを自動記録し、`order_id`/`shares_held`/`average_acquisition_price` を一括リセット
+    *   [x] **Frontend**: `StockTable` に「取得株価(均)」「含み損益」カラム追加（日本株慣例: 含み益=赤・含み損=緑）
+    *   [x] **Frontend**: 「未保有→保有済」切替時、または保有株数列「＋」クリックで BUY フォームをインライン展開し買付を記録
+    *   [x] **Frontend**: 保有株数列「−」クリックで SELL フォームをインライン展開し売却を記録（保有株数 0 時は disabled）
+    *   [x] **Backend**: SELL で `shares_held` が 0 になった際 `order_id` を自動リセット → AI ロジックを BUY 判定へ復帰
+    *   [x] **Frontend**: 行展開エリアに「ニュース感情」「取引履歴」タブを追加（クリック時に `GET /trades` を遅延取得）
+
+    **Week 3 — ゴールベース積立シミュレーター**
+    *   [ ] Core Service に追加（あるいは軽量新規サービス）：目標金額・期間・想定利回りを入力 → 必要月次積立額を複利計算で逆算する API
+    *   [ ] フロントに簡易フォーム＋結果表示（グラフ化は任意）
+    *   ここで初めて「短期シグナル」と「長期ゴール」が同一画面に並び、思想の矛盾を製品として解消できる。
+
+    **Week 4 — NISA枠トラッキング + Quality負債の返済**
+    *   [ ] 年間つみたて投資枠・成長投資枠の消化額を手動記録し、残枠を表示（外部API連携不要）
+    *   [ ] Insight Service に CI ジョブを追加（Week 1〜3 の新規コードのテストも含めて一括整備）
+    *   [ ] README を Phase 2/3 の実態に合わせて更新（技術的負債の解消）
 
 ---
 
