@@ -19,7 +19,7 @@ import { LogEntry } from "@/types";
 export default function Home() {
   const {
     stocks, loading, error,
-    addStock, deleteStock, markAsBought, settleStock, updateSharesHeld, refreshStocks,
+    addStock, deleteStock, markAsBought, settleStock, recordSell, refreshStocks,
   } = useStocks();
 
   const { portfolio, loading: portfolioLoading, refresh: refreshPortfolio } = usePortfolio();
@@ -90,23 +90,32 @@ export default function Home() {
               <StockTable
                 stocks={stocks}
                 loading={loading}
-                onUpdateShares={async (symbol, newShares) => {
-                  addLog(`[System] Backend へ保有株数更新リクエストを送信中: ${symbol} → ${newShares}株`);
-                  const result = await updateSharesHeld(symbol, newShares);
+                onChangeStatus={async (symbol) => {
+                  // StockTable は 未保有 選択時のみこのコールバックを呼ぶ (保有済 は onBuy 経由)
+                  addLog(`[System] Backend へ決済リクエストを送信中: ${symbol}`);
+                  const result = await settleStock(symbol);
                   if (result.success) {
-                    addLog(`[Success] Backend応答: ${symbol} 保有株数を ${newShares}株 に更新しました`);
+                    addLog(`[Success] Backend応答: ${result.message}`);
                     refreshPortfolio();
                   } else {
                     addLog(`[Error] Backend応答: ${result.message}`);
                   }
                 }}
-                onChangeStatus={async (symbol, newStatus) => {
-                  addLog(`[System] Backend へ保有状況変更リクエストを送信中: ${symbol} → ${newStatus}`);
-                  const result = newStatus === "保有済"
-                    ? await markAsBought(symbol)
-                    : await settleStock(symbol);
+                onBuy={async (symbol, price, quantity) => {
+                  addLog(`[System] Backend へ買付リクエストを送信中: ${symbol} ¥${price} × ${quantity}株`);
+                  const result = await markAsBought(symbol, price, quantity);
                   if (result.success) {
-                    addLog(`[Success] Backend応答: ${symbol} を${newStatus}に変更しました`);
+                    addLog(`[Success] Backend応答: ${result.message}`);
+                    refreshPortfolio();
+                  } else {
+                    addLog(`[Error] Backend応答: ${result.message}`);
+                  }
+                }}
+                onSell={async (symbol, price, quantity) => {
+                  addLog(`[System] Backend へ売却リクエストを送信中: ${symbol} ¥${price} × ${quantity}株`);
+                  const result = await recordSell(symbol, price, quantity);
+                  if (result.success) {
+                    addLog(`[Success] Backend応答: ${result.message}`);
                     refreshPortfolio();
                   } else {
                     addLog(`[Error] Backend応答: ${result.message}`);

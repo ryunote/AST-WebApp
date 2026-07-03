@@ -7,7 +7,7 @@ from mangum import Mangum
 from db.database import engine, run_migrations
 from db import models
 # 作成したルーターをインポート
-from routers import stocks, analysis, portfolio
+from routers import stocks, analysis, portfolio, trades
 
 # アプリケーション起動時にDBテーブルを作成
 models.Base.metadata.create_all(bind=engine)
@@ -38,6 +38,7 @@ app.add_middleware(
 app.include_router(stocks.router)
 app.include_router(analysis.router)
 app.include_router(portfolio.router)
+app.include_router(trades.router)
 
 @app.get("/")
 def read_root():

@@ -69,5 +69,31 @@ class StockAnalysisResult(BaseModel):
     current_price: float    # 現在株価
     reason: str             # 提案の理由（画面表示用）
     last_analyzed_at: str   # 分析実行日時刻
-    
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ------------------------------------------------------------------
+# 取引履歴用スキーマ
+# ------------------------------------------------------------------
+
+class TradeCreate(BaseModel):
+    """取引記録の作成リクエスト。"""
+    trade_type: str              # "BUY" or "SELL"
+    quantity: float
+    price: float
+    trade_datetime: Optional[str] = None  # None 時はバックエンドが現在時刻を使用
+    note: Optional[str] = None
+
+
+class TradeResponse(BaseModel):
+    """取引記録のレスポンス。"""
+    id: int
+    stock_symbol: str
+    trade_type: str
+    quantity: float
+    price: float
+    trade_datetime: str
+    note: Optional[str] = None
+
     model_config = ConfigDict(from_attributes=True)

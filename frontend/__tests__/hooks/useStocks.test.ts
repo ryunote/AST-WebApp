@@ -148,7 +148,7 @@ describe('useStocks', () => {
 
   // ─── settleStock ─────────────────────────────────────────────────────────
 
-  it('settleStock は PUT /api/stocks/:ticker を売却済み情報で呼ぶこと', async () => {
+  it('settleStock は POST /api/stocks/:ticker/settle を呼ぶこと', async () => {
     mockApiClient
       .mockResolvedValueOnce([sampleStock])
       .mockResolvedValueOnce({ message: '決済成功' })
@@ -162,10 +162,71 @@ describe('useStocks', () => {
     })
 
     expect(mockApiClient).toHaveBeenCalledWith(
+      '/api/stocks/7203/settle',
+      expect.objectContaining({ method: 'POST' })
+    )
+  })
+
+  // ─── markAsBought ─────────────────────────────────────────────────────────
+
+  it('markAsBought は PUT でAIロジックを切り替えた後 POST /trades で BUY を記録すること', async () => {
+    const tradeRecord = {
+      id: 1, stock_symbol: '7203', trade_type: 'BUY',
+      quantity: 100, price: 2850, trade_datetime: '2026/01/01 00:00:00', note: null,
+    }
+    mockApiClient
+      .mockResolvedValueOnce([sampleStock])           // fetchStocks (マウント時)
+      .mockResolvedValueOnce({ message: '更新成功' }) // PUT /api/stocks/7203
+      .mockResolvedValueOnce(tradeRecord)              // POST /api/stocks/7203/trades
+      .mockResolvedValueOnce([sampleStock])            // fetchStocks (アクション後)
+
+    const { result } = renderHook(() => useStocks())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.markAsBought('7203', 2850, 100)
+    })
+
+    expect(mockApiClient).toHaveBeenCalledWith(
       '/api/stocks/7203',
       expect.objectContaining({
         method: 'PUT',
-        body: expect.stringContaining('売却済'),
+        body: expect.stringContaining('MANUAL'),
+      })
+    )
+    expect(mockApiClient).toHaveBeenCalledWith(
+      '/api/stocks/7203/trades',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('BUY'),
+      })
+    )
+  })
+
+  // ─── recordSell ──────────────────────────────────────────────────────────
+
+  it('recordSell は POST /api/stocks/:ticker/trades で SELL を記録すること', async () => {
+    const tradeRecord = {
+      id: 2, stock_symbol: '7203', trade_type: 'SELL',
+      quantity: 50, price: 3500, trade_datetime: '2026/01/01 00:00:00', note: null,
+    }
+    mockApiClient
+      .mockResolvedValueOnce([sampleStock])  // fetchStocks (マウント時)
+      .mockResolvedValueOnce(tradeRecord)     // POST /api/stocks/7203/trades
+      .mockResolvedValueOnce([sampleStock])  // fetchStocks (アクション後)
+
+    const { result } = renderHook(() => useStocks())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.recordSell('7203', 3500, 50)
+    })
+
+    expect(mockApiClient).toHaveBeenCalledWith(
+      '/api/stocks/7203/trades',
+      expect.objectContaining({
+        method: 'POST',
+        body: expect.stringContaining('SELL'),
       })
     )
   })

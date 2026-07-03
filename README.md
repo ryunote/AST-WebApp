@@ -75,7 +75,8 @@ ast-web/
 │   ├── routers/
 │   │   ├── stocks.py           # 銘柄CRUD
 │   │   ├── analysis.py         # 分析オーケストレーター (ML Service 呼び出し・売買判断)
-│   │   └── portfolio.py        # GET /api/portfolio: 保有銘柄の評価額・含み損益・配分集計
+│   │   ├── portfolio.py        # GET /api/portfolio: 保有銘柄の評価額・含み損益・配分集計
+│   │   └── trades.py           # GET/POST /trades: 売買ログ・加重平均コスト法 / POST /settle: 全売却決済
 │   └── tests/
 │       ├── conftest.py         # SQLite in-memory DB fixture・TestClient DI
 │       └── unit/
@@ -130,13 +131,13 @@ ast-web/
     ├── hooks/                  # useStocks カスタムフック
     ├── hooks/                  # useStocks / usePortfolio カスタムフック
     ├── lib/
-    │   ├── api.ts              # APIクライアント (apiClient / getMarketInsight / getCachedInsight / getPortfolio)
+    │   ├── api.ts              # APIクライアント (apiClient / getMarketInsight / getCachedInsight / getPortfolio / getTrades / addTrade)
     │   └── convergence.ts      # computeConvergence() ユーティリティ
     ├── types/                  # TypeScript型定義 (InsightResponse / ConvergenceState)
     └── __tests__/
         ├── page.test.tsx
         ├── components/
-        │   ├── StockTable.test.tsx          # 銘柄行・Insight展開 (31テスト)
+        │   ├── StockTable.test.tsx          # 銘柄行・Insight展開・BUY フォーム・取引履歴タブ (40テスト)
         │   ├── NewsInsightPanel.test.tsx    # 感情/メタ/イベント/リスク (12テスト)
         │   ├── SignalConvergenceBadge.test.tsx # 4状態 (4テスト)
         │   ├── AnalysisPanel.test.tsx
@@ -144,7 +145,7 @@ ast-web/
         │   ├── StatusLog.test.tsx
         │   └── ThemeToggle.test.tsx
         ├── hooks/
-        │   └── useStocks.test.ts            # フックの状態管理 (11テスト)
+        │   └── useStocks.test.ts            # フックの状態管理 (12テスト)
         └── lib/
             ├── api.test.ts                  # apiClient + getMarketInsight (14テスト)
             └── convergence.test.ts          # computeConvergence 全分岐 (10テスト)
@@ -257,14 +258,14 @@ Mutation Testing が Branch Coverage より厳しい理由: `if x > 0` を `if x
 
 ---
 
-### 現在のテスト構成（258テスト）
+### 現在のテスト構成（268テスト）
 
 | サービス | テストファイル | テスト数 | Line Coverage | Branch Coverage | Mutation Score |
 | :--- | :--- | :---: | :---: | :---: | :---: |
 | **Core Service** | `test_stocks_router.py` / `test_analysis_logic.py` / `test_main.py` | 44 | 99% | **99%** | — |
 | **ML Service** | `test_predict_endpoint.py` / `test_ml_engine.py` / `test_market_data.py` / `test_cache.py` / `test_main.py` | 46 | **100%** | **100%** | — |
 | **Insight Service** | `test_symbol_resolver.py` / `test_news_fetcher.py` / `test_llm_client.py` / `test_cache.py` / `test_market_endpoint.py` | 48 | — | — | — |
-| **Frontend** | `StockTable.test.tsx` / `NewsInsightPanel.test.tsx` / `SignalConvergenceBadge.test.tsx` / `convergence.test.ts` / `api.test.ts` / `useStocks.test.ts` / その他 | 120 | 87% | **95%** | **60%** |
+| **Frontend** | `StockTable.test.tsx` / `NewsInsightPanel.test.tsx` / `SignalConvergenceBadge.test.tsx` / `convergence.test.ts` / `api.test.ts` / `useStocks.test.ts` / その他 | 130 | 87% | **95%** | **60%** |
 
 ---
 
@@ -430,12 +431,23 @@ pyenv exec mutmut results
     *   [x] Core Service に `GET /api/portfolio` を新設：全銘柄の `shares_held × current_price` を合算し、総評価額・銘柄別配分（%）・含み損益を返す
     *   [x] UI に保有状況ドロップダウン・保有株数±100コントロール追加、Insight Redis キャッシュ改善（接続プール・プリフェッチ・`/cached` エンドポイント）
 
-    **Week 2 — ポートフォリオダッシュボード（可視化）✅ Completed**
+    **Week 2a — ポートフォリオダッシュボード（可視化）✅ Completed**
     *   [x] メインページ右カラムに `PortfolioDashboard` を追加（SPA 構成維持、別ルート不要と判断）：総評価額・含み損益・SVGドーナツチャート・銘柄別配分バー
     *   [x] `usePortfolio` フック新設：`GET /api/portfolio` を管理し手動 refresh を提供
     *   [x] 保有株数変更・保有状況変更・一括分析完了のタイミングでポートフォリオを自動更新
     *   [x] コンテナ幅を `max-w-screen-2xl`（1536px）に拡張し左カラムの横幅を確保
     *   既存の `NewsInsightPanel` / `computeConvergence` はそのまま個別銘柄詳細として活用（作り直し不要）
+
+    **Week 2b — 取得株価管理 + 売買ログ ✅ Completed**
+    *   [x] **DB追加**: `trade_history` テーブル新設（`Base.metadata.create_all` によるスタートアップ自動作成）
+        - `id` (PK autoincrement) / `stock_symbol` (indexed) / `trade_type` ("BUY"|"SELL") / `quantity` / `price` / `trade_datetime` / `note`
+    *   [x] **Backend**: `TradeHistory` SQLAlchemy モデル・`TradeCreate`/`TradeResponse` Pydantic スキーマ追加
+    *   [x] **Backend**: `GET /api/stocks/{symbol}/trades` — 取引履歴を新しい順に取得
+    *   [x] **Backend**: `POST /api/stocks/{symbol}/trades` — BUY/SELL 記録追加 → 加重平均コスト法で `average_acquisition_price` を再計算・`StockInTrade` に同期
+    *   [x] **Backend**: `POST /api/stocks/{symbol}/settle` — DB から現在の `shares_held` / `current_price` を参照して SELL ログを自動記録し、`order_id`/`shares_held`/`average_acquisition_price` を一括リセット
+    *   [x] **Frontend**: `StockTable` に「取得株価(均)」「含み損益」カラム追加（日本株慣例: 含み益=赤・含み損=緑）
+    *   [x] **Frontend**: 「未保有→保有済」切替時にインラインフォーム（単価・株数）を展開し BUY として記録
+    *   [x] **Frontend**: 行展開エリアに「ニュース感情」「取引履歴」タブを追加（クリック時に `GET /trades` を遅延取得）
 
     **Week 3 — ゴールベース積立シミュレーター**
     *   [ ] Core Service に追加（あるいは軽量新規サービス）：目標金額・期間・想定利回りを入力 → 必要月次積立額を複利計算で逆算する API

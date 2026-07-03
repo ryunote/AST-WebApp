@@ -64,25 +64,42 @@ export const useStocks = () => {
       })
     );
 
-  const settleStock = (ticker: string) => {
+  /**
+   * 銘柄を「保有済」に手動変更し、BUY 取引を記録する。
+   * order_id を "MANUAL" にして AI を SELL/HOLD ロジックへ切り替え、
+   * trade_history に BUY レコードを作成して加重平均コスト法で average_acquisition_price を同期する。
+   *
+   * @param ticker - 証券コード
+   * @param acquisitionPrice - 取得単価 (円)
+   * @param quantity - 購入株数 (デフォルト 100)
+   */
+  const markAsBought = (ticker: string, acquisitionPrice: number, quantity = 100) => {
     const now = new Date().toLocaleString("ja-JP");
-    return executeAction(() =>
-      apiClient<{ message: string }>(`/api/stocks/${ticker}`, {
+    return executeAction(async () => {
+      await apiClient<{ message: string }>(`/api/stocks/${ticker}`, {
         method: "PUT",
-        body: JSON.stringify({
-          order_id: "---",
-          order_settlement_datetime: now,
-          order_datetime: `売却済: ${now}`,
-          average_acquisition_price: 0.0,
-          shares_held: 0.0,
-        }),
-      })
-    );
+        body: JSON.stringify({ order_id: "MANUAL", order_datetime: now }),
+      });
+      await apiClient<unknown>(`/api/stocks/${ticker}/trades`, {
+        method: "POST",
+        body: JSON.stringify({ trade_type: "BUY", quantity, price: acquisitionPrice }),
+      });
+      return { message: `${ticker} 買付を記録しました (¥${acquisitionPrice} × ${quantity}株)` };
+    });
   };
 
   /**
-   * 保有株数を更新する。+/- ボタンから呼び出される。
-   * newShares は 0 以上の値のみ受け付ける。
+   * 銘柄を全売却決済する。
+   * バックエンドが現在の shares_held / current_price で SELL 記録を作成し、
+   * order_id / shares_held / average_acquisition_price をリセットする。
+   */
+  const settleStock = (ticker: string) =>
+    executeAction(() =>
+      apiClient<{ message: string }>(`/api/stocks/${ticker}/settle`, { method: "POST" })
+    );
+
+  /**
+   * 保有株数を直接更新する（管理用途・手動補正向け）。
    */
   const updateSharesHeld = (ticker: string, newShares: number) =>
     executeAction(() =>
@@ -91,6 +108,24 @@ export const useStocks = () => {
         body: JSON.stringify({ shares_held: Math.max(0, newShares) }),
       })
     );
+
+  /**
+   * 部分売却を記録する。
+   * trade_history に SELL レコードを作成し shares_held / average_acquisition_price を同期する。
+   * shares_held が 0 になった場合、バックエンドが order_id もリセットして AI を BUY ロジックへ戻す。
+   *
+   * @param ticker - 証券コード
+   * @param sellPrice - 売却単価 (円)
+   * @param quantity - 売却株数
+   */
+  const recordSell = (ticker: string, sellPrice: number, quantity: number) =>
+    executeAction(async () => {
+      await apiClient<unknown>(`/api/stocks/${ticker}/trades`, {
+        method: "POST",
+        body: JSON.stringify({ trade_type: "SELL", quantity, price: sellPrice }),
+      });
+      return { message: `${ticker} 売却を記録しました (¥${sellPrice} × ${quantity}株)` };
+    });
 
   // 初回マウント時にデータを取得
   // React 18のStrict Mode開発環境では2回呼ばれることがあるが、仕様上問題ない
@@ -104,7 +139,9 @@ export const useStocks = () => {
     error,
     addStock,
     deleteStock,
+    markAsBought,
     settleStock,
+    recordSell,
     updateSharesHeld,
     refreshStocks: fetchStocks,
   };

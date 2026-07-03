@@ -85,6 +85,21 @@ export type PortfolioResponse = {
 };
 
 /**
+ * 売買取引履歴の1レコード。
+ * GET /api/stocks/{symbol}/trades のレスポンス要素。
+ */
+export type TradeEntry = {
+  id: number;
+  stock_symbol: string;
+  /** "BUY" または "SELL" */
+  trade_type: "BUY" | "SELL";
+  quantity: number;
+  price: number;
+  trade_datetime: string;
+  note: string | null;
+};
+
+/**
  * システムログのデータ構造
  */
 export type LogEntry = {

@@ -82,6 +82,35 @@ export async function getCachedInsight(symbol: string): Promise<import("@/types"
 }
 
 /**
+ * 銘柄の取引履歴を新しい順に取得する。
+ *
+ * @param symbol - 証券コード (例: "7203.T")
+ * @returns TradeEntry[]
+ * @throws {Error} API通信エラー
+ */
+export async function getTrades(symbol: string): Promise<import("@/types").TradeEntry[]> {
+  return apiClient<import("@/types").TradeEntry[]>(`/api/stocks/${symbol}/trades`);
+}
+
+/**
+ * 取引を記録する。BUY 時は加重平均コスト法で average_acquisition_price を更新する。
+ *
+ * @param symbol - 証券コード
+ * @param trade - 取引情報
+ * @returns 作成された TradeEntry
+ * @throws {Error} API通信エラー
+ */
+export async function addTrade(
+  symbol: string,
+  trade: { trade_type: "BUY" | "SELL"; quantity: number; price: number; note?: string }
+): Promise<import("@/types").TradeEntry> {
+  return apiClient<import("@/types").TradeEntry>(`/api/stocks/${symbol}/trades`, {
+    method: "POST",
+    body: JSON.stringify(trade),
+  });
+}
+
+/**
  * Insight Serviceからニュース感情分析を取得する。
  *
  * @param symbol - 証券コード (例: "7203.T", "AAPL")

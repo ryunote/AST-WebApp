@@ -13,7 +13,7 @@ jest.mock('@/hooks/useStocks', () => ({
     deleteStock: jest.fn(),
     markAsBought: jest.fn(),
     settleStock: jest.fn(),
-    updateSharesHeld: jest.fn(),
+    recordSell: jest.fn(),
     refreshStocks: jest.fn(),
   }),
 }))
