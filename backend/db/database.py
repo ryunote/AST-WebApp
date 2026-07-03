@@ -29,13 +29,20 @@ Base = declarative_base()
 def run_migrations():
     """
     起動時の軽量マイグレーション。
-    Alembicを使わずに既存テーブルへのカラム追加を安全に行う。
+    Alembic を使わずに既存テーブルへのカラム追加を安全に行う。
     ADD COLUMN IF NOT EXISTS は PostgreSQL 9.6+ でサポート。
+    SQLite（テスト環境）は create_all が全カラムを作成するためスキップ。
     """
+    if engine.dialect.name != "postgresql":
+        return
     with engine.connect() as conn:
         conn.execute(text(
             "ALTER TABLE stocks_in_trade "
             "ADD COLUMN IF NOT EXISTS shares_held FLOAT DEFAULT 0.0"
+        ))
+        conn.execute(text(
+            "ALTER TABLE stocks_in_trade "
+            "ADD COLUMN IF NOT EXISTS average_acquisition_price FLOAT DEFAULT 0.0"
         ))
         conn.commit()
 

@@ -326,21 +326,21 @@ describe('StockTable - 買付フォーム', () => {
   it('ST-11: 保有状況を「保有済」に変更すると買付フォームが表示されること', () => {
     render(<StockTable stocks={[makeStock({ shares_held: 0 })]} loading={false} onChangeStatus={mockOnChangeStatus} onBuy={mockOnBuy} />)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '保有済' } })
-    expect(screen.getByPlaceholderText('取得単価 (円)')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('単価')).toBeInTheDocument()
   })
 
   it('ST-12: 買付フォームの「キャンセル」でフォームが非表示になること', () => {
     render(<StockTable stocks={[makeStock({ shares_held: 0 })]} loading={false} onChangeStatus={mockOnChangeStatus} onBuy={mockOnBuy} />)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '保有済' } })
     fireEvent.click(screen.getByText('キャンセル'))
-    expect(screen.queryByPlaceholderText('取得単価 (円)')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('単価')).not.toBeInTheDocument()
   })
 
   it('ST-13: 単価と株数を入力して「確定」をクリックすると onBuy が呼ばれること', async () => {
     render(<StockTable stocks={[makeStock({ shares_held: 0 })]} loading={false} onChangeStatus={mockOnChangeStatus} onBuy={mockOnBuy} />)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: '保有済' } })
-    fireEvent.change(screen.getByPlaceholderText('取得単価 (円)'), { target: { value: '3000' } })
-    fireEvent.change(screen.getByPlaceholderText('株数'), { target: { value: '100' } })
+    fireEvent.change(screen.getByPlaceholderText('単価'), { target: { value: '3000' } })
+    fireEvent.change(screen.getByPlaceholderText('数量'), { target: { value: '100' } })
     fireEvent.click(screen.getByText('確定'))
     expect(mockOnBuy).toHaveBeenCalledWith('7203.T', 3000, 100)
   })
@@ -348,7 +348,7 @@ describe('StockTable - 買付フォーム', () => {
   it('ST-11b: 「＋」ボタンをクリックすると買付フォームが表示されること', () => {
     render(<StockTable stocks={[makeStock({ shares_held: 100 })]} loading={false} onChangeStatus={mockOnChangeStatus} onBuy={mockOnBuy} />)
     fireEvent.click(screen.getByRole('button', { name: '買付フォームを表示' }))
-    expect(screen.getByPlaceholderText('取得単価 (円)')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('単価')).toBeInTheDocument()
   })
 })
 
@@ -381,21 +381,21 @@ describe('StockTable - 売却フォーム', () => {
   it('ST-16: 「−」ボタンをクリックすると売却フォームが表示されること', () => {
     render(<StockTable stocks={[makeStock({ shares_held: 100 })]} loading={false} onChangeStatus={mockOnChangeStatus} onSell={mockOnSell} />)
     fireEvent.click(screen.getByRole('button', { name: '売却フォームを表示' }))
-    expect(screen.getByPlaceholderText('売却単価 (円)')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('単価')).toBeInTheDocument()
   })
 
   it('ST-17: 売却フォームの「キャンセル」でフォームが非表示になること', () => {
     render(<StockTable stocks={[makeStock({ shares_held: 100 })]} loading={false} onChangeStatus={mockOnChangeStatus} onSell={mockOnSell} />)
     fireEvent.click(screen.getByRole('button', { name: '売却フォームを表示' }))
     fireEvent.click(screen.getByText('キャンセル'))
-    expect(screen.queryByPlaceholderText('売却単価 (円)')).not.toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('単価')).not.toBeInTheDocument()
   })
 
   it('ST-18: 単価と株数を入力して「確定」をクリックすると onSell が呼ばれること', async () => {
     render(<StockTable stocks={[makeStock({ shares_held: 100 })]} loading={false} onChangeStatus={mockOnChangeStatus} onSell={mockOnSell} />)
     fireEvent.click(screen.getByRole('button', { name: '売却フォームを表示' }))
-    fireEvent.change(screen.getByPlaceholderText('売却単価 (円)'), { target: { value: '3500' } })
-    fireEvent.change(screen.getByPlaceholderText('株数'), { target: { value: '50' } })
+    fireEvent.change(screen.getByPlaceholderText('単価'), { target: { value: '3500' } })
+    fireEvent.change(screen.getByPlaceholderText('数量'), { target: { value: '50' } })
     fireEvent.click(screen.getByText('確定'))
     expect(mockOnSell).toHaveBeenCalledWith('7203.T', 3500, 50)
   })

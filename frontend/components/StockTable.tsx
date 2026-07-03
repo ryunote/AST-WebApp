@@ -316,26 +316,32 @@ export default function StockTable({ stocks, loading, onChangeStatus, onBuy, onS
                             >
                               {pendingForm!.type === "BUY" ? "買付情報を入力:" : "売却情報を入力:"}
                             </span>
-                            <input
-                              type="number"
-                              value={formPrice}
-                              onChange={(e) => setFormPrice(e.target.value)}
-                              placeholder={pendingForm!.type === "BUY" ? "取得単価 (円)" : "売却単価 (円)"}
-                              className="w-36 text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1
-                                bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-                                focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              min="0"
-                            />
-                            <input
-                              type="number"
-                              value={formQty}
-                              onChange={(e) => setFormQty(e.target.value)}
-                              placeholder="株数"
-                              className="w-24 text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1
-                                bg-white dark:bg-gray-700 text-gray-900 dark:text-white
-                                focus:outline-none focus:ring-1 focus:ring-blue-500"
-                              min="0"
-                            />
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={formPrice}
+                                onChange={(e) => setFormPrice(e.target.value)}
+                                placeholder="単価"
+                                className="w-32 text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1
+                                  bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                                  focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                min="0"
+                              />
+                              <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">円</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                value={formQty}
+                                onChange={(e) => setFormQty(e.target.value)}
+                                placeholder="数量"
+                                className="w-20 text-sm border border-gray-300 dark:border-gray-600 rounded px-2 py-1
+                                  bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                                  focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                min="0"
+                              />
+                              <span className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">株</span>
+                            </div>
                             <button
                               onClick={() => handleFormConfirm(stock.stock_symbol, pendingForm!.type)}
                               disabled={!formPrice || !formQty}
