@@ -122,11 +122,13 @@ ast-web/
     ├── app/                    # App Router Pages
     ├── components/
     │   ├── StockTable.tsx           # 銘柄一覧 (行クリックでInsight取得・展開、保有株数±100・保有状況ドロップダウン、起動時キャッシュプリフェッチ)
+    │   ├── PortfolioDashboard.tsx   # ポートフォリオサイドバー (総評価額・含み損益・SVGドーナツチャート・銘柄別配分バー)
     │   ├── NewsInsightPanel.tsx     # ニュース分析展開パネル (感情/サマリー/イベント/リスク)
     │   ├── SignalConvergenceBadge.tsx # XGBoost×Geminiシグナル収束バッジ
     │   ├── AnalysisPanel.tsx        # ML一括分析コントロール
     │   └── ...                      # その他共通コンポーネント
     ├── hooks/                  # useStocks カスタムフック
+    ├── hooks/                  # useStocks / usePortfolio カスタムフック
     ├── lib/
     │   ├── api.ts              # APIクライアント (apiClient / getMarketInsight / getCachedInsight / getPortfolio)
     │   └── convergence.ts      # computeConvergence() ユーティリティ
@@ -428,8 +430,11 @@ pyenv exec mutmut results
     *   [x] Core Service に `GET /api/portfolio` を新設：全銘柄の `shares_held × current_price` を合算し、総評価額・銘柄別配分（%）・含み損益を返す
     *   [x] UI に保有状況ドロップダウン・保有株数±100コントロール追加、Insight Redis キャッシュ改善（接続プール・プリフェッチ・`/cached` エンドポイント）
 
-    **Week 2 — ポートフォリオダッシュボード（可視化）**
-    *   [ ] フロントに `/portfolio` ページ追加：総資産額・配分円グラフ・評価損益の時系列
+    **Week 2 — ポートフォリオダッシュボード（可視化）✅ Completed**
+    *   [x] メインページ右カラムに `PortfolioDashboard` を追加（SPA 構成維持、別ルート不要と判断）：総評価額・含み損益・SVGドーナツチャート・銘柄別配分バー
+    *   [x] `usePortfolio` フック新設：`GET /api/portfolio` を管理し手動 refresh を提供
+    *   [x] 保有株数変更・保有状況変更・一括分析完了のタイミングでポートフォリオを自動更新
+    *   [x] コンテナ幅を `max-w-screen-2xl`（1536px）に拡張し左カラムの横幅を確保
     *   既存の `NewsInsightPanel` / `computeConvergence` はそのまま個別銘柄詳細として活用（作り直し不要）
 
     **Week 3 — ゴールベース積立シミュレーター**
