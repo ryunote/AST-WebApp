@@ -122,7 +122,7 @@ ast-web/
 └── frontend/                   # [Frontend] Next.js アプリケーション
     ├── app/                    # App Router Pages
     ├── components/
-    │   ├── StockTable.tsx           # 銘柄一覧 (行クリックでInsight取得・展開、保有株数±100・保有状況ドロップダウン、起動時キャッシュプリフェッチ)
+    │   ├── StockTable.tsx           # 銘柄一覧 (行クリックでInsight取得・展開、「＋」→買付フォーム/「−」→売却フォーム展開、保有状況ドロップダウン、起動時キャッシュプリフェッチ)
     │   ├── PortfolioDashboard.tsx   # ポートフォリオサイドバー (総評価額・含み損益・SVGドーナツチャート・銘柄別配分バー)
     │   ├── NewsInsightPanel.tsx     # ニュース分析展開パネル (感情/サマリー/イベント/リスク)
     │   ├── SignalConvergenceBadge.tsx # XGBoost×Geminiシグナル収束バッジ
@@ -137,7 +137,7 @@ ast-web/
     └── __tests__/
         ├── page.test.tsx
         ├── components/
-        │   ├── StockTable.test.tsx          # 銘柄行・Insight展開・BUY フォーム・取引履歴タブ (40テスト)
+        │   ├── StockTable.test.tsx          # 銘柄行・Insight展開・BUY/SELL フォーム・取引履歴タブ (45テスト)
         │   ├── NewsInsightPanel.test.tsx    # 感情/メタ/イベント/リスク (12テスト)
         │   ├── SignalConvergenceBadge.test.tsx # 4状態 (4テスト)
         │   ├── AnalysisPanel.test.tsx
@@ -145,7 +145,7 @@ ast-web/
         │   ├── StatusLog.test.tsx
         │   └── ThemeToggle.test.tsx
         ├── hooks/
-        │   └── useStocks.test.ts            # フックの状態管理 (12テスト)
+        │   └── useStocks.test.ts            # フックの状態管理 (13テスト)
         └── lib/
             ├── api.test.ts                  # apiClient + getMarketInsight (14テスト)
             └── convergence.test.ts          # computeConvergence 全分岐 (10テスト)
@@ -258,14 +258,14 @@ Mutation Testing が Branch Coverage より厳しい理由: `if x > 0` を `if x
 
 ---
 
-### 現在のテスト構成（268テスト）
+### 現在のテスト構成（274テスト）
 
 | サービス | テストファイル | テスト数 | Line Coverage | Branch Coverage | Mutation Score |
 | :--- | :--- | :---: | :---: | :---: | :---: |
 | **Core Service** | `test_stocks_router.py` / `test_analysis_logic.py` / `test_main.py` | 44 | 99% | **99%** | — |
 | **ML Service** | `test_predict_endpoint.py` / `test_ml_engine.py` / `test_market_data.py` / `test_cache.py` / `test_main.py` | 46 | **100%** | **100%** | — |
 | **Insight Service** | `test_symbol_resolver.py` / `test_news_fetcher.py` / `test_llm_client.py` / `test_cache.py` / `test_market_endpoint.py` | 48 | — | — | — |
-| **Frontend** | `StockTable.test.tsx` / `NewsInsightPanel.test.tsx` / `SignalConvergenceBadge.test.tsx` / `convergence.test.ts` / `api.test.ts` / `useStocks.test.ts` / その他 | 130 | 87% | **95%** | **60%** |
+| **Frontend** | `StockTable.test.tsx` / `NewsInsightPanel.test.tsx` / `SignalConvergenceBadge.test.tsx` / `convergence.test.ts` / `api.test.ts` / `useStocks.test.ts` / その他 | 136 | 87% | **95%** | **60%** |
 
 ---
 
@@ -446,7 +446,9 @@ pyenv exec mutmut results
     *   [x] **Backend**: `POST /api/stocks/{symbol}/trades` — BUY/SELL 記録追加 → 加重平均コスト法で `average_acquisition_price` を再計算・`StockInTrade` に同期
     *   [x] **Backend**: `POST /api/stocks/{symbol}/settle` — DB から現在の `shares_held` / `current_price` を参照して SELL ログを自動記録し、`order_id`/`shares_held`/`average_acquisition_price` を一括リセット
     *   [x] **Frontend**: `StockTable` に「取得株価(均)」「含み損益」カラム追加（日本株慣例: 含み益=赤・含み損=緑）
-    *   [x] **Frontend**: 「未保有→保有済」切替時にインラインフォーム（単価・株数）を展開し BUY として記録
+    *   [x] **Frontend**: 「未保有→保有済」切替時、または保有株数列「＋」クリックで BUY フォームをインライン展開し買付を記録
+    *   [x] **Frontend**: 保有株数列「−」クリックで SELL フォームをインライン展開し売却を記録（保有株数 0 時は disabled）
+    *   [x] **Backend**: SELL で `shares_held` が 0 になった際 `order_id` を自動リセット → AI ロジックを BUY 判定へ復帰
     *   [x] **Frontend**: 行展開エリアに「ニュース感情」「取引履歴」タブを追加（クリック時に `GET /trades` を遅延取得）
 
     **Week 3 — ゴールベース積立シミュレーター**
